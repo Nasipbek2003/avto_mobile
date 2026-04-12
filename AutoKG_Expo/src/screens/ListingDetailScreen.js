@@ -8,6 +8,8 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
+import {Image} from 'expo-image';
+import {Ionicons} from '@expo/vector-icons';
 import {api} from '../config/api';
 import Car3DViewer from '../components/Car3DViewer';
 
@@ -26,8 +28,20 @@ const ListingDetailScreen = ({route, navigation}) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [show3D, setShow3D] = useState(false);
 
-  // Демо-изображения (в реальном приложении будут из API)
-  const images = ['🚗', '🚙', '🚕', '🚐'];
+  // Получаем изображения из объявления
+  const getImages = () => {
+    if (listing.photos && listing.photos.length > 0) {
+      const photos = typeof listing.photos === 'string' ? JSON.parse(listing.photos) : listing.photos;
+      // Преобразуем пути в полные URL
+      return photos.map(photo => {
+        if (photo.startsWith('http')) return photo;
+        return `http://172.20.10.2:3000${photo}`;
+      });
+    }
+    return [];
+  };
+
+  const images = getImages();
 
   const toggleFavorite = async () => {
     try {
@@ -44,57 +58,88 @@ const ListingDetailScreen = ({route, navigation}) => {
 
   const handleChat = () => {
     navigation.navigate('Chat', {
-      listingId: listing.id,
-      sellerId: listing.user_id,
-      sellerName: listing.owner_name || 'Продавец',
+      chatId: listing.chat_id,
+      otherUser: {
+        id: listing.user_id,
+        name: listing.owner_name || 'Продавец',
+      },
     });
   };
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>←</Text>
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={styles.backButtonContainer}
+        >
+          <Ionicons name="arrow-back" size={28} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={toggleFavorite}>
-          <Text style={styles.heartButton}>{isFavorite ? '❤️' : '🤍'}</Text>
+        <TouchableOpacity 
+          onPress={toggleFavorite}
+          style={styles.favoriteButtonContainer}
+        >
+          <Ionicons 
+            name={isFavorite ? 'bookmark' : 'bookmark-outline'} 
+            size={28} 
+            color="#fff" 
+          />
         </TouchableOpacity>
       </View>
 
       <View style={styles.imageContainer}>
-        <ScrollView
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onScroll={(e) => {
-            const index = Math.round(e.nativeEvent.contentOffset.x / width);
-            setCurrentImageIndex(index);
-          }}
-          scrollEventThrottle={16}>
-          {images.map((img, index) => (
-            <View key={index} style={styles.imageSlide}>
-              <Text style={styles.imagePlaceholder}>{img}</Text>
+        {images.length > 0 ? (
+          <>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onScroll={(e) => {
+                const index = Math.round(e.nativeEvent.contentOffset.x / width);
+                setCurrentImageIndex(index);
+              }}
+              scrollEventThrottle={16}>
+              {images.map((imageUrl, index) => (
+                <View key={index} style={styles.imageSlide}>
+                  <Image
+                    source={{uri: imageUrl}}
+                    style={styles.image}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+            
+            <View style={styles.imageIndicators}>
+              {images.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.indicator,
+                    currentImageIndex === index && styles.activeIndicator,
+                  ]}
+                />
+              ))}
             </View>
-          ))}
-        </ScrollView>
-        
-        <View style={styles.imageIndicators}>
-          {images.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.indicator,
-                currentImageIndex === index && styles.activeIndicator,
-              ]}
-            />
-          ))}
-        </View>
+          </>
+        ) : (
+          <View style={styles.imageSlide}>
+            <Ionicons name="car-sport" size={80} color="#999" />
+            <Text style={styles.noImageText}>Нет фотографий</Text>
+          </View>
+        )}
 
         <TouchableOpacity 
           style={styles.threeDButton}
           onPress={() => setShow3D(!show3D)}>
+          <Ionicons 
+            name={show3D ? 'camera' : 'cube'} 
+            size={20} 
+            color="#fff" 
+          />
           <Text style={styles.threeDButtonText}>
-            {show3D ? '📷 Фото' : '🔄 3D'}
+            {show3D ? 'Фото' : '3D'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -151,26 +196,33 @@ const ListingDetailScreen = ({route, navigation}) => {
         <View style={styles.sellerSection}>
           <Text style={styles.sectionTitle}>Продавец</Text>
           <View style={styles.sellerInfo}>
-            <Text style={styles.sellerAvatar}>👤</Text>
+            <View style={styles.sellerAvatarContainer}>
+              <Ionicons name="person" size={32} color="#7c3aed" />
+            </View>
             <View style={styles.sellerDetails}>
               <Text style={styles.sellerName}>{listing.owner_name || 'Частное лицо'}</Text>
-              <Text style={styles.sellerRating}>
-                ⭐ {listing.owner_rating || '5.0'} (Новый пользователь)
-              </Text>
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={16} color="#fbbf24" />
+                <Text style={styles.sellerRating}>
+                  {listing.owner_rating || '5.0'} (Новый пользователь)
+                </Text>
+              </View>
             </View>
           </View>
           <TouchableOpacity style={styles.chatButton} onPress={handleChat}>
-            <Text style={styles.chatButtonText}>💬 Написать продавцу</Text>
+            <Ionicons name="chatbubble" size={20} color="#fff" />
+            <Text style={styles.chatButtonText}>Написать продавцу</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.shareButton}>
-          <Text style={styles.shareIcon}>📤</Text>
+          <Ionicons name="share-social" size={24} color="#666" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.contactButton}>
-          <Text style={styles.contactButtonText}>📞 Позвонить</Text>
+          <Ionicons name="call" size={20} color="#fff" />
+          <Text style={styles.contactButtonText}>Позвонить</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -185,22 +237,29 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
     position: 'absolute',
-    top: 0,
+    top: 40,
     left: 0,
     right: 0,
     zIndex: 10,
   },
-  backButton: {
-    fontSize: 28,
-    color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: {width: -1, height: 1},
-    textShadowRadius: 10,
+  backButtonContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  heartButton: {
-    fontSize: 28,
+  favoriteButtonContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   imageContainer: {
     height: 300,
@@ -214,8 +273,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#e0e0e0',
   },
-  imagePlaceholder: {
-    fontSize: 80,
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  noImageText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#999',
   },
   imageIndicators: {
     position: 'absolute',
@@ -238,16 +303,20 @@ const styles = StyleSheet.create({
   },
   threeDButton: {
     position: 'absolute',
-    top: 16,
+    top: 60,
     right: 16,
-    backgroundColor: '#7c3aed',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(124, 58, 237, 0.9)',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
   },
   threeDButtonText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: '600',
+    fontSize: 14,
   },
   threeDViewer: {
     height: 200,
@@ -317,8 +386,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  sellerAvatar: {
-    fontSize: 40,
+  sellerAvatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   sellerDetails: {
@@ -329,15 +403,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   sellerRating: {
     fontSize: 14,
     color: '#666',
   },
   chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     backgroundColor: '#7c3aed',
     padding: 16,
     borderRadius: 12,
-    alignItems: 'center',
   },
   chatButtonText: {
     color: '#fff',
@@ -362,16 +444,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  shareIcon: {
-    fontSize: 20,
+    width: 56,
   },
   contactButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     backgroundColor: '#4ade80',
     padding: 16,
     borderRadius: 12,
-    alignItems: 'center',
   },
   contactButtonText: {
     color: '#fff',

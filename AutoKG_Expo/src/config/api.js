@@ -2,6 +2,14 @@
 // ВАЖНО: Используйте IP адрес вашего компьютера, а не localhost!
 // Узнать IP: ipconfig (Windows) или ifconfig (Mac/Linux)
 export const API_URL = 'http://172.20.10.2:3000/api';
+export const BASE_URL = 'http://172.20.10.2:3000';
+
+// Helper function to get full image URL
+export const getImageUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `${BASE_URL}${path}`;
+};
 
 // Helper function to get auth headers
 export const getAuthHeaders = async () => {

@@ -11,7 +11,6 @@ import {
   Platform,
   Image,
 } from 'react-native';
-import {Picker} from '@react-native-picker/picker';
 import {Ionicons} from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import {api} from '../config/api';
@@ -42,7 +41,28 @@ const NewListingScreen = ({navigation, route}) => {
   useEffect(() => {
     loadData();
     requestPermissions();
-  }, []);
+    
+    // Очистка состояния при открытии экрана для создания нового объявления
+    if (!editMode) {
+      resetForm();
+    }
+  }, [route.params]);
+
+  const resetForm = () => {
+    if (!editMode) {
+      setTitle('');
+      setDescription('');
+      setPrice('');
+      setBrand('');
+      setModel('');
+      setYear('');
+      setMileage('');
+      setEngineVolume('');
+      setFuelType('Бензин');
+      setPhotos([]);
+      setUploadedPhotoUrls([]);
+    }
+  };
 
   const requestPermissions = async () => {
     const {status} = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -61,8 +81,11 @@ const NewListingScreen = ({navigation, route}) => {
       setCategories(categoriesData);
       setRegions(regionsData);
       
-      if (categoriesData.length > 0) setCategoryId(categoriesData[0].id.toString());
-      if (regionsData.length > 0) setRegionId(regionsData[0].id.toString());
+      // Устанавливаем значения по умолчанию только если не в режиме редактирования
+      if (!editMode) {
+        if (categoriesData.length > 0) setCategoryId(categoriesData[0].id.toString());
+        if (regionsData.length > 0) setRegionId(regionsData[0].id.toString());
+      }
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
     }
@@ -130,8 +153,16 @@ const NewListingScreen = ({navigation, route}) => {
       'Добавить фото',
       'Выберите источник',
       [
-        {text: '📷 Камера', onPress: takePhoto},
-        {text: '🖼️ Галерея', onPress: pickImage},
+        {
+          text: 'Камера',
+          onPress: takePhoto,
+          icon: 'camera',
+        },
+        {
+          text: 'Галерея',
+          onPress: pickImage,
+          icon: 'images',
+        },
         {text: 'Отмена', style: 'cancel'},
       ],
       {cancelable: true}
@@ -212,28 +243,34 @@ const NewListingScreen = ({navigation, route}) => {
 
       <View style={styles.form}>
         <Text style={styles.label}>Категория *</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={categoryId}
-            onValueChange={setCategoryId}
-            style={styles.picker}>
-            {categories.map(cat => (
-              <Picker.Item key={cat.id} label={cat.name_ru} value={cat.id.toString()} />
-            ))}
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.selectButton}
+          onPress={() =>
+            navigation.navigate('CategorySelect', {
+              currentCategory: categories.find(c => c.id.toString() === categoryId),
+              onSelect: (category) => setCategoryId(category.id.toString()),
+            })
+          }>
+          <Text style={styles.selectButtonText}>
+            {categories.find(c => c.id.toString() === categoryId)?.name_ru || 'Выберите категорию'}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
 
         <Text style={styles.label}>Регион *</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={regionId}
-            onValueChange={setRegionId}
-            style={styles.picker}>
-            {regions.map(reg => (
-              <Picker.Item key={reg.id} label={reg.name_ru} value={reg.id.toString()} />
-            ))}
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.selectButton}
+          onPress={() =>
+            navigation.navigate('RegionSelect', {
+              currentRegion: regions.find(r => r.id.toString() === regionId),
+              onSelect: (region) => setRegionId(region.id.toString()),
+            })
+          }>
+          <Text style={styles.selectButtonText}>
+            {regions.find(r => r.id.toString() === regionId)?.name_ru || 'Выберите регион'}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
 
         <Text style={styles.label}>Марка *</Text>
         <TextInput
@@ -270,26 +307,34 @@ const NewListingScreen = ({navigation, route}) => {
         />
 
         <Text style={styles.label}>Объём двигателя</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="2.0L"
-          value={engineVolume}
-          onChangeText={setEngineVolume}
-        />
+        <TouchableOpacity
+          style={styles.selectButton}
+          onPress={() =>
+            navigation.navigate('EngineVolumeSelect', {
+              currentVolume: engineVolume,
+              onSelect: (volume) => setEngineVolume(volume),
+            })
+          }>
+          <Text style={styles.selectButtonText}>
+            {engineVolume || 'Выберите объем двигателя'}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
 
         <Text style={styles.label}>Тип топлива *</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={fuelType}
-            onValueChange={setFuelType}
-            style={styles.picker}>
-            <Picker.Item label="Бензин" value="Бензин" />
-            <Picker.Item label="Дизель" value="Дизель" />
-            <Picker.Item label="Газ" value="Газ" />
-            <Picker.Item label="Электро" value="Электро" />
-            <Picker.Item label="Гибрид" value="Гибрид" />
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.selectButton}
+          onPress={() =>
+            navigation.navigate('FuelTypeSelect', {
+              currentFuelType: fuelType,
+              onSelect: (fuel) => setFuelType(fuel),
+            })
+          }>
+          <Text style={styles.selectButtonText}>
+            {fuelType || 'Выберите тип топлива'}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
 
         <Text style={styles.label}>Цена ($) *</Text>
         <TextInput
@@ -419,6 +464,20 @@ const styles = StyleSheet.create({
   },
   picker: {
     height: 50,
+  },
+  selectButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 14,
+    backgroundColor: '#fff',
+  },
+  selectButtonText: {
+    fontSize: 16,
+    color: '#333',
   },
   photosScroll: {
     marginBottom: 16,

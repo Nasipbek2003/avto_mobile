@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import {Picker} from '@react-native-picker/picker';
+import {Image} from 'expo-image';
 import {Ionicons} from '@expo/vector-icons';
 import {api} from '../config/api';
 
@@ -120,28 +120,34 @@ const SearchScreen = ({navigation}) => {
           <Text style={styles.filterTitle}>Фильтры</Text>
           
           <Text style={styles.label}>Категория</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={selectedCategory}
-              onValueChange={setSelectedCategory}>
-              <Picker.Item label="Все категории" value="" />
-              {categories.map(cat => (
-                <Picker.Item key={cat.id} label={cat.name_ru} value={cat.id.toString()} />
-              ))}
-            </Picker>
-          </View>
+          <TouchableOpacity
+            style={styles.selectButton}
+            onPress={() =>
+              navigation.navigate('CategorySelect', {
+                currentCategory: categories.find(c => c.id.toString() === selectedCategory),
+                onSelect: (category) => setSelectedCategory(category.id.toString()),
+              })
+            }>
+            <Text style={styles.selectButtonText}>
+              {categories.find(c => c.id.toString() === selectedCategory)?.name_ru || 'Все категории'}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
 
           <Text style={styles.label}>Регион</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={selectedRegion}
-              onValueChange={setSelectedRegion}>
-              <Picker.Item label="Все регионы" value="" />
-              {regions.map(reg => (
-                <Picker.Item key={reg.id} label={reg.name_ru} value={reg.id.toString()} />
-              ))}
-            </Picker>
-          </View>
+          <TouchableOpacity
+            style={styles.selectButton}
+            onPress={() =>
+              navigation.navigate('RegionSelect', {
+                currentRegion: regions.find(r => r.id.toString() === selectedRegion),
+                onSelect: (region) => setSelectedRegion(region.id.toString()),
+              })
+            }>
+            <Text style={styles.selectButtonText}>
+              {regions.find(r => r.id.toString() === selectedRegion)?.name_ru || 'Все регионы'}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
 
           <Text style={styles.label}>Цена ($)</Text>
           <View style={styles.rangeContainer}>
@@ -182,18 +188,19 @@ const SearchScreen = ({navigation}) => {
           </View>
 
           <Text style={styles.label}>Тип топлива</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={fuelType}
-              onValueChange={setFuelType}>
-              <Picker.Item label="Любой" value="" />
-              <Picker.Item label="Бензин" value="Бензин" />
-              <Picker.Item label="Дизель" value="Дизель" />
-              <Picker.Item label="Газ" value="Газ" />
-              <Picker.Item label="Электро" value="Электро" />
-              <Picker.Item label="Гибрид" value="Гибрид" />
-            </Picker>
-          </View>
+          <TouchableOpacity
+            style={styles.selectButton}
+            onPress={() =>
+              navigation.navigate('FuelTypeSelect', {
+                currentFuelType: fuelType,
+                onSelect: (fuel) => setFuelType(fuel),
+              })
+            }>
+            <Text style={styles.selectButtonText}>
+              {fuelType || 'Любой'}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
 
           <View style={styles.filterButtons}>
             <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
@@ -226,7 +233,26 @@ const SearchScreen = ({navigation}) => {
                 style={styles.resultCard}
                 onPress={() => navigation.navigate('ListingDetail', {listing})}>
                 <View style={styles.resultImage}>
-                  <Ionicons name="car-sport" size={48} color="#999" />
+                  {listing.photos && listing.photos.length > 0 ? (
+                    <Image
+                      source={{
+                        uri: (() => {
+                          const photos = typeof listing.photos === 'string' 
+                            ? JSON.parse(listing.photos) 
+                            : listing.photos;
+                          const photoPath = photos[0];
+                          return photoPath.startsWith('http') 
+                            ? photoPath 
+                            : `http://172.20.10.2:3000${photoPath}`;
+                        })()
+                      }}
+                      style={styles.resultImageFull}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ) : (
+                    <Ionicons name="car-sport" size={48} color="#999" />
+                  )}
                 </View>
                 <View style={styles.resultInfo}>
                   <Text style={styles.resultTitle}>{listing.title}</Text>
@@ -310,6 +336,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
   },
+  selectButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 14,
+    backgroundColor: '#fff',
+  },
+  selectButtonText: {
+    fontSize: 16,
+    color: '#333',
+  },
   rangeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -390,9 +430,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e0e0',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
-  imagePlaceholder: {
-    fontSize: 40,
+  resultImageFull: {
+    width: '100%',
+    height: '100%',
   },
   resultInfo: {
     flex: 1,

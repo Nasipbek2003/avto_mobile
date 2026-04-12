@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -53,19 +52,12 @@ const LanguageSelectScreen = ({navigation}) => {
       await AsyncStorage.setItem('language', langCode);
       setSelectedLanguage(langCode);
       
-      Alert.alert(
-        'Язык изменен',
-        'Язык интерфейса будет изменен при следующем запуске приложения',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+      // Просто возвращаемся назад без уведомления
+      setTimeout(() => {
+        navigation.goBack();
+      }, 300);
     } catch (error) {
       console.error('Ошибка сохранения языка:', error);
-      Alert.alert('Ошибка', 'Не удалось сохранить язык');
     }
   };
 

@@ -2,7 +2,7 @@ import React from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 
-const ChatsScreen = () => {
+const ChatsScreen = ({navigation}) => {
   const chats = [
     {
       id: 1,
@@ -22,6 +22,16 @@ const ChatsScreen = () => {
     },
   ];
 
+  const handleChatPress = (chat) => {
+    navigation.navigate('Chat', {
+      chatId: chat.id,
+      otherUser: {
+        id: chat.id,
+        name: chat.name,
+      },
+    });
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -33,7 +43,11 @@ const ChatsScreen = () => {
 
       <ScrollView>
         {chats.map(chat => (
-          <TouchableOpacity key={chat.id} style={styles.chatCard}>
+          <TouchableOpacity 
+            key={chat.id} 
+            style={styles.chatCard}
+            onPress={() => handleChatPress(chat)}
+            activeOpacity={0.7}>
             <View style={styles.avatarContainer}>
               <View style={styles.avatarCircle}>
                 <Ionicons name="person" size={32} color="#7c3aed" />

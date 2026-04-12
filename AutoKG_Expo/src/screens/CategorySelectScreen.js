@@ -12,55 +12,57 @@ import {
 import {Ionicons} from '@expo/vector-icons';
 import {api} from '../config/api';
 
-const RegionSelectScreen = ({navigation, route}) => {
-  const [regions, setRegions] = useState([]);
-  const [filteredRegions, setFilteredRegions] = useState([]);
+const CategorySelectScreen = ({navigation, route}) => {
+  const [categories, setCategories] = useState([]);
+  const [filteredCategories, setFilteredCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [selectedRegion, setSelectedRegion] = useState(route.params?.currentRegion || null);
+  const [selectedCategory, setSelectedCategory] = useState(route.params?.currentCategory || null);
 
   useEffect(() => {
-    loadRegions();
+    loadCategories();
   }, []);
 
   useEffect(() => {
     if (searchQuery) {
-      const filtered = regions.filter((region) =>
-        region.name_ru.toLowerCase().includes(searchQuery.toLowerCase())
+      const filtered = categories.filter((category) =>
+        category.name_ru.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      setFilteredRegions(filtered);
+      setFilteredCategories(filtered);
     } else {
-      setFilteredRegions(regions);
+      setFilteredCategories(categories);
     }
-  }, [searchQuery, regions]);
+  }, [searchQuery, categories]);
 
-  const loadRegions = async () => {
+  const loadCategories = async () => {
     try {
-      const data = await api.getRegions();
-      setRegions(data);
-      setFilteredRegions(data);
+      const data = await api.getCategories();
+      setCategories(data);
+      setFilteredCategories(data);
     } catch (error) {
-      console.error('Ошибка загрузки регионов:', error);
+      console.error('Ошибка загрузки категорий:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getRegionIcon = (regionName) => {
-    if (regionName.includes('Бишкек') || regionName.includes('Ош')) {
-      return 'business';
-    } else if (regionName.includes('Иссык-Куль')) {
-      return 'water';
-    } else if (regionName.includes('Нарын') || regionName.includes('Талас')) {
-      return 'snow';
+  const getCategoryIcon = (categoryName) => {
+    if (categoryName.includes('Легковые')) {
+      return 'car-sport';
+    } else if (categoryName.includes('Внедорожники')) {
+      return 'car';
+    } else if (categoryName.includes('Грузовые')) {
+      return 'bus';
+    } else if (categoryName.includes('Мото')) {
+      return 'bicycle';
     }
-    return 'location';
+    return 'car-outline';
   };
 
-  const handleSelectRegion = (region) => {
-    setSelectedRegion(region);
+  const handleSelectCategory = (category) => {
+    setSelectedCategory(category);
     if (route.params?.onSelect) {
-      route.params.onSelect(region);
+      route.params.onSelect(category);
     }
     navigation.goBack();
   };
@@ -82,7 +84,7 @@ const RegionSelectScreen = ({navigation, route}) => {
         >
           <Ionicons name="arrow-back" size={26} color="#7c3aed" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Выбор региона</Text>
+        <Text style={styles.headerTitle}>Выбор категории</Text>
         <View style={{width: 40}} />
       </View>
 
@@ -90,7 +92,7 @@ const RegionSelectScreen = ({navigation, route}) => {
         <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Поиск региона..."
+          placeholder="Поиск категории..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -101,35 +103,35 @@ const RegionSelectScreen = ({navigation, route}) => {
         )}
       </View>
 
-      <ScrollView style={styles.regionsList}>
-        {filteredRegions.length === 0 ? (
+      <ScrollView style={styles.categoriesList}>
+        {filteredCategories.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Регионы не найдены</Text>
+            <Text style={styles.emptyText}>Категории не найдены</Text>
           </View>
         ) : (
-          filteredRegions.map((region) => (
+          filteredCategories.map((category) => (
             <TouchableOpacity
-              key={region.id}
+              key={category.id}
               style={[
-                styles.regionItem,
-                selectedRegion?.id === region.id && styles.regionItemSelected,
+                styles.categoryItem,
+                selectedCategory?.id === category.id && styles.categoryItemSelected,
               ]}
-              onPress={() => handleSelectRegion(region)}
+              onPress={() => handleSelectCategory(category)}
               activeOpacity={0.7}>
-              <View style={styles.regionIconContainer}>
+              <View style={styles.categoryIconContainer}>
                 <Ionicons 
-                  name={getRegionIcon(region.name_ru)} 
+                  name={getCategoryIcon(category.name_ru)} 
                   size={26} 
                   color="#7c3aed" 
                 />
               </View>
-              <View style={styles.regionTextContainer}>
-                <Text style={styles.regionName}>{region.name_ru}</Text>
-                {region.name_kg && (
-                  <Text style={styles.regionNameKg}>{region.name_kg}</Text>
+              <View style={styles.categoryTextContainer}>
+                <Text style={styles.categoryName}>{category.name_ru}</Text>
+                {category.name_kg && (
+                  <Text style={styles.categoryNameKg}>{category.name_kg}</Text>
                 )}
               </View>
-              {selectedRegion?.id === region.id && (
+              {selectedCategory?.id === category.id && (
                 <View style={styles.checkmarkContainer}>
                   <Ionicons name="checkmark" size={20} color="#fff" />
                 </View>
@@ -190,7 +192,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
   },
-  regionsList: {
+  categoriesList: {
     flex: 1,
   },
   emptyContainer: {
@@ -201,7 +203,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
   },
-  regionItem: {
+  categoryItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
@@ -212,11 +214,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  regionItemSelected: {
+  categoryItemSelected: {
     borderColor: '#7c3aed',
     backgroundColor: '#f5f3ff',
   },
-  regionIconContainer: {
+  categoryIconContainer: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -227,16 +229,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e8e8e8',
   },
-  regionTextContainer: {
+  categoryTextContainer: {
     flex: 1,
   },
-  regionName: {
+  categoryName: {
     fontSize: 17,
     fontWeight: '600',
     marginBottom: 4,
     color: '#333',
   },
-  regionNameKg: {
+  categoryNameKg: {
     fontSize: 13,
     color: '#666',
   },
@@ -250,4 +252,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RegionSelectScreen;
+export default CategorySelectScreen;

@@ -5,9 +5,9 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import {Ionicons} from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ВАЖНО: Используйте IP адрес вашего компьютера, а не localhost!
@@ -20,6 +20,7 @@ const LoginScreen = ({navigation}) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -27,24 +28,26 @@ const LoginScreen = ({navigation}) => {
   };
 
   const handleAuth = async () => {
+    setError('');
+    
     // Валидация
     if (!email || !password) {
-      Alert.alert('Ошибка', 'Заполните все поля');
+      setError('Заполните все поля');
       return;
     }
 
     if (!validateEmail(email)) {
-      Alert.alert('Ошибка', 'Введите корректный email');
+      setError('Введите корректный email');
       return;
     }
 
     if (password.length < 8) {
-      Alert.alert('Ошибка', 'Пароль должен содержать минимум 8 символов');
+      setError('Пароль должен содержать минимум 8 символов');
       return;
     }
 
     if (isRegisterMode && !name) {
-      Alert.alert('Ошибка', 'Введите ваше имя');
+      setError('Введите ваше имя');
       return;
     }
 
@@ -67,7 +70,7 @@ const LoginScreen = ({navigation}) => {
       const data = await response.json();
 
       if (!response.ok) {
-        Alert.alert('Ошибка', data.error || 'Что-то пошло не так');
+        setError(data.error || 'Что-то пошло не так');
         setLoading(false);
         return;
       }
@@ -76,14 +79,11 @@ const LoginScreen = ({navigation}) => {
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
 
-      Alert.alert(
-        'Успешно', 
-        isRegisterMode ? 'Регистрация прошла успешно!' : 'Добро пожаловать!',
-        [{ text: 'OK', onPress: () => navigation.replace('Main') }]
-      );
+      // Переходим на главный экран без уведомления
+      navigation.replace('Main');
     } catch (error) {
       console.error('Ошибка авторизации:', error);
-      Alert.alert('Ошибка', 'Не удалось подключиться к серверу');
+      setError('Не удалось подключиться к серверу');
     } finally {
       setLoading(false);
     }
@@ -96,6 +96,13 @@ const LoginScreen = ({navigation}) => {
         <Text style={styles.subtitle}>
           {isRegisterMode ? 'Создать аккаунт' : 'Добро пожаловать'}
         </Text>
+
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={20} color="#ef4444" />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
 
         {isRegisterMode && (
           <TextInput
@@ -125,7 +132,11 @@ const LoginScreen = ({navigation}) => {
             secureTextEntry={!showPassword}
           />
           <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-            <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+            <Ionicons 
+              name={showPassword ? 'eye-off' : 'eye'} 
+              size={22} 
+              color="#999" 
+            />
           </TouchableOpacity>
         </View>
 
@@ -210,8 +221,19 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 16,
   },
-  eyeIcon: {
-    fontSize: 20,
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fee2e2',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#ef4444',
   },
   loginButton: {
     backgroundColor: '#7c3aed',

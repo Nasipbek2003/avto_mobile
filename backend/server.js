@@ -231,12 +231,20 @@ app.get('/api/listings/:id', async (req, res) => {
     const result = await pool.query(`
       SELECT l.*, u.name as owner_name, u.email as owner_email, 
              u.rating as owner_rating, u.avatar_url as owner_avatar,
-             c.name_ru as category_name, r.name_ru as region_name
+             c.name_ru as category_name, r.name_ru as region_name,
+             COALESCE(
+               json_agg(
+                 lp.url ORDER BY lp."order"
+               ) FILTER (WHERE lp.url IS NOT NULL),
+               '[]'
+             ) as photos
       FROM listings l
       LEFT JOIN users u ON l.user_id = u.id
       LEFT JOIN categories c ON l.category_id = c.id
       LEFT JOIN regions r ON l.region_id = r.id
+      LEFT JOIN listing_photos lp ON l.id = lp.listing_id
       WHERE l.id = $1
+      GROUP BY l.id, u.name, u.email, u.rating, u.avatar_url, c.name_ru, r.name_ru
     `, [id]);
 
     if (result.rows.length === 0) {

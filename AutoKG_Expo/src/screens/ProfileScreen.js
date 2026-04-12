@@ -6,17 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Ionicons} from '@expo/vector-icons';
+import {useToast} from '../context/ToastContext';
 import {api} from '../config/api';
 
 const ProfileScreen = ({navigation}) => {
   const [user, setUser] = useState(null);
   const [myAds, setMyAds] = useState([]);
   const [loading, setLoading] = useState(true);
+  const {showToast} = useToast();
 
   useEffect(() => {
     loadProfile();
@@ -38,51 +39,30 @@ const ProfileScreen = ({navigation}) => {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Выход',
-      'Вы уверены, что хотите выйти?',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Выйти',
-          style: 'destructive',
-          onPress: async () => {
-            await AsyncStorage.removeItem('token');
-            await AsyncStorage.removeItem('user');
-            navigation.replace('Login');
-          },
-        },
-      ]
-    );
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+      navigation.replace('Login');
+    } catch (error) {
+      console.error('Ошибка выхода:', error);
+      showToast('Ошибка при выходе', 'error');
+    }
   };
 
   const handleEditListing = (listing) => {
     navigation.navigate('NewListing', { editMode: true, listing });
   };
 
-  const handleDeleteListing = (listingId) => {
-    Alert.alert(
-      'Удалить объявление',
-      'Вы уверены, что хотите удалить это объявление?',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Удалить',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.deleteListing(listingId);
-              setMyAds(myAds.filter(ad => ad.id !== listingId));
-              Alert.alert('Успешно', 'Объявление удалено');
-            } catch (error) {
-              console.error('Ошибка удаления:', error);
-              Alert.alert('Ошибка', 'Не удалось удалить объявление');
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteListing = async (listingId) => {
+    try {
+      await api.deleteListing(listingId);
+      setMyAds(myAds.filter(ad => ad.id !== listingId));
+      showToast('Объявление удалено', 'success');
+    } catch (error) {
+      console.error('Ошибка удаления:', error);
+      showToast('Не удалось удалить объявление', 'error');
+    }
   };
 
   if (loading) {

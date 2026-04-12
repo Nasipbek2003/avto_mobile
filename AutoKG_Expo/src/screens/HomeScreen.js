@@ -12,7 +12,7 @@ import {
 import {Image} from 'expo-image';
 import {Ionicons} from '@expo/vector-icons';
 import {debounce} from 'lodash';
-import {api} from '../config/api';
+import {api, getImageUrl} from '../config/api';
 
 // Мемоизированный компонент карточки объявления
 const ListingCard = React.memo(({item, onPress}) => {
@@ -29,13 +29,36 @@ const ListingCard = React.memo(({item, onPress}) => {
     return `${diffDays} дн назад`;
   };
 
+  const getImageUrl = () => {
+    if (item.photos && item.photos.length > 0) {
+      // Если photos это строка JSON, парсим её
+      const photos = typeof item.photos === 'string' ? JSON.parse(item.photos) : item.photos;
+      const photoPath = photos[0];
+      // Возвращаем полный URL
+      if (photoPath.startsWith('http')) return photoPath;
+      return `http://172.20.10.2:3000${photoPath}`;
+    }
+    return null;
+  };
+
+  const imageUrl = getImageUrl();
+
   return (
     <TouchableOpacity
       style={styles.adCard}
       onPress={onPress}
       activeOpacity={0.7}>
       <View style={styles.adImage}>
-        <Ionicons name="car-sport" size={48} color="#999" />
+        {imageUrl ? (
+          <Image
+            source={{uri: imageUrl}}
+            style={styles.adImageFull}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <Ionicons name="car-sport" size={48} color="#999" />
+        )}
       </View>
       <View style={styles.adInfo}>
         <Text style={styles.adTitle} numberOfLines={2}>
@@ -321,6 +344,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  adImageFull: {
+    width: '100%',
+    height: '100%',
   },
   adInfo: {
     flex: 1,
