@@ -34,9 +34,8 @@ const ListingCard = React.memo(({item, onPress}) => {
       // Если photos это строка JSON, парсим её
       const photos = typeof item.photos === 'string' ? JSON.parse(item.photos) : item.photos;
       const photoPath = photos[0];
-      // Возвращаем полный URL
-      if (photoPath.startsWith('http')) return photoPath;
-      return `http://172.20.10.2:3000${photoPath}`;
+      // Cloudinary URL уже полный, просто возвращаем
+      return photoPath;
     }
     return null;
   };
@@ -261,7 +260,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingBottom: 16,
     backgroundColor: '#fff',
   },

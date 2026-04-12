@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import {Image} from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Ionicons} from '@expo/vector-icons';
 import {useToast} from '../context/ToastContext';
@@ -65,6 +66,14 @@ const ProfileScreen = ({navigation}) => {
     }
   };
 
+  const getImageUrl = (ad) => {
+    if (ad.photos && ad.photos.length > 0) {
+      const photos = typeof ad.photos === 'string' ? JSON.parse(ad.photos) : ad.photos;
+      return photos[0];
+    }
+    return null;
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -99,53 +108,65 @@ const ProfileScreen = ({navigation}) => {
         {myAds.length === 0 ? (
           <Text style={styles.emptyText}>У вас пока нет объявлений</Text>
         ) : (
-          myAds.map(ad => (
-            <View key={ad.id} style={styles.adCard}>
-              <View style={styles.adImage}>
-                <Ionicons name="car-sport" size={40} color="#999" />
-              </View>
-              <View style={styles.adInfo}>
-                <Text style={styles.adTitle}>{ad.title}</Text>
-                <Text style={styles.adPrice}>${ad.price?.toLocaleString()}</Text>
-                <View style={styles.adMeta}>
-                  <View style={styles.statusContainer}>
-                    <Ionicons 
-                      name={ad.status === 'active' ? 'checkmark-circle' : ad.status === 'sold' ? 'close-circle' : 'time'} 
-                      size={14} 
-                      color={ad.status === 'active' ? '#4ade80' : ad.status === 'sold' ? '#f87171' : '#fbbf24'} 
+          myAds.map(ad => {
+            const imageUrl = getImageUrl(ad);
+            return (
+              <View key={ad.id} style={styles.adCard}>
+                <View style={styles.adImage}>
+                  {imageUrl ? (
+                    <Image
+                      source={{uri: imageUrl}}
+                      style={styles.image}
+                      contentFit="cover"
+                      transition={200}
                     />
-                    <Text style={[
-                      styles.adStatus,
-                      ad.status === 'active' && styles.statusActive,
-                      ad.status === 'sold' && styles.statusSold,
-                    ]}>
-                      {ad.status === 'active' ? 'Активно' : 
-                       ad.status === 'sold' ? 'Продано' : 'На модерации'}
+                  ) : (
+                    <Ionicons name="car-sport" size={40} color="#999" />
+                  )}
+                </View>
+                <View style={styles.adInfo}>
+                  <Text style={styles.adTitle}>{ad.title}</Text>
+                  <Text style={styles.adPrice}>${ad.price?.toLocaleString()}</Text>
+                  <View style={styles.adMeta}>
+                    <View style={styles.statusContainer}>
+                      <Ionicons 
+                        name={ad.status === 'active' ? 'checkmark-circle' : ad.status === 'sold' ? 'close-circle' : 'time'} 
+                        size={14} 
+                        color={ad.status === 'active' ? '#4ade80' : ad.status === 'sold' ? '#f87171' : '#fbbf24'} 
+                      />
+                      <Text style={[
+                        styles.adStatus,
+                        ad.status === 'active' && styles.statusActive,
+                        ad.status === 'sold' && styles.statusSold,
+                      ]}>
+                        {ad.status === 'active' ? 'Активно' : 
+                         ad.status === 'sold' ? 'Продано' : 'На модерации'}
+                      </Text>
+                    </View>
+                    <Text style={styles.adDate}>
+                      {new Date(ad.created_at).toLocaleDateString('ru-RU')}
                     </Text>
                   </View>
-                  <Text style={styles.adDate}>
-                    {new Date(ad.created_at).toLocaleDateString('ru-RU')}
-                  </Text>
-                </View>
-                <View style={styles.adActions}>
-                  <TouchableOpacity 
-                    style={styles.actionButton}
-                    onPress={() => handleEditListing(ad)}
-                  >
-                    <Ionicons name="create-outline" size={18} color="#7c3aed" />
-                    <Text style={styles.actionButtonText}>Редактировать</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={() => handleDeleteListing(ad.id)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                    <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Удалить</Text>
-                  </TouchableOpacity>
+                  <View style={styles.adActions}>
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleEditListing(ad)}
+                    >
+                      <Ionicons name="create-outline" size={18} color="#7c3aed" />
+                      <Text style={styles.actionButtonText}>Редактировать</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={() => handleDeleteListing(ad.id)}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                      <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Удалить</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
-            </View>
-          ))
+            );
+          })
         )}
       </View>
 
@@ -185,7 +206,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: Platform.OS === 'ios' ? 70 : 24,
+    paddingTop: Platform.OS === 'ios' ? 70 : 50,
     paddingBottom: 24,
   },
   avatarContainer: {
@@ -266,6 +287,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
   },
   adInfo: {
     flex: 1,

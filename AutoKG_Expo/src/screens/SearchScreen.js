@@ -240,10 +240,8 @@ const SearchScreen = ({navigation}) => {
                           const photos = typeof listing.photos === 'string' 
                             ? JSON.parse(listing.photos) 
                             : listing.photos;
-                          const photoPath = photos[0];
-                          return photoPath.startsWith('http') 
-                            ? photoPath 
-                            : `http://172.20.10.2:3000${photoPath}`;
+                          // Cloudinary URL уже полный
+                          return photos[0];
                         })()
                       }}
                       style={styles.resultImageFull}
@@ -282,7 +280,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingBottom: 16,
     backgroundColor: '#fff',
     gap: 12,

@@ -32,11 +32,8 @@ const ListingDetailScreen = ({route, navigation}) => {
   const getImages = () => {
     if (listing.photos && listing.photos.length > 0) {
       const photos = typeof listing.photos === 'string' ? JSON.parse(listing.photos) : listing.photos;
-      // Преобразуем пути в полные URL
-      return photos.map(photo => {
-        if (photo.startsWith('http')) return photo;
-        return `http://172.20.10.2:3000${photo}`;
-      });
+      // Cloudinary URL уже полные, просто возвращаем
+      return photos;
     }
     return [];
   };

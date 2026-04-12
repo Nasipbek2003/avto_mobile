@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
+import {Image} from 'expo-image';
 import {Ionicons} from '@expo/vector-icons';
 import {api} from '../config/api';
 
@@ -45,6 +46,14 @@ const FavoritesScreen = () => {
     } catch (error) {
       console.error('Ошибка удаления из избранного:', error);
     }
+  };
+
+  const getImageUrl = (item) => {
+    if (item.photos && item.photos.length > 0) {
+      const photos = typeof item.photos === 'string' ? JSON.parse(item.photos) : item.photos;
+      return photos[0];
+    }
+    return null;
   };
 
   const formatTimeAgo = (dateString) => {
@@ -85,27 +94,39 @@ const FavoritesScreen = () => {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }>
-          {favorites.map(item => (
-            <View key={item.id} style={styles.favoriteCard}>
-              <View style={styles.imageContainer}>
-                <Ionicons name="car-sport" size={48} color="#999" />
-              </View>
-              <View style={styles.infoContainer}>
-                <Text style={styles.title}>{item.title}</Text>
-                <Text style={styles.price}>${item.price?.toLocaleString()}</Text>
-                <View style={styles.locationRow}>
-                  <Ionicons name="location" size={14} color="#666" />
-                  <Text style={styles.location}>{item.region_name || 'Не указан'}</Text>
+          {favorites.map(item => {
+            const imageUrl = getImageUrl(item);
+            return (
+              <View key={item.id} style={styles.favoriteCard}>
+                <View style={styles.imageContainer}>
+                  {imageUrl ? (
+                    <Image
+                      source={{uri: imageUrl}}
+                      style={styles.image}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ) : (
+                    <Ionicons name="car-sport" size={48} color="#999" />
+                  )}
                 </View>
-                <Text style={styles.date}>{formatTimeAgo(item.created_at)}</Text>
+                <View style={styles.infoContainer}>
+                  <Text style={styles.title}>{item.title}</Text>
+                  <Text style={styles.price}>${item.price?.toLocaleString()}</Text>
+                  <View style={styles.locationRow}>
+                    <Ionicons name="location" size={14} color="#666" />
+                    <Text style={styles.location}>{item.region_name || 'Не указан'}</Text>
+                  </View>
+                  <Text style={styles.date}>{formatTimeAgo(item.created_at)}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.heartButton}
+                  onPress={() => handleRemoveFavorite(item.id)}>
+                  <Ionicons name="heart" size={28} color="#ef4444" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.heartButton}
-                onPress={() => handleRemoveFavorite(item.id)}>
-                <Ionicons name="heart" size={28} color="#ef4444" />
-              </TouchableOpacity>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
     </View>
@@ -144,7 +165,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingBottom: 16,
     backgroundColor: '#fff',
   },
@@ -171,6 +192,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
   },
   infoContainer: {
     flex: 1,

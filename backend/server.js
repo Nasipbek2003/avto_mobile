@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
 const pool = require('./db');
 require('dotenv').config();
 
@@ -21,22 +22,21 @@ const io = socketIo(server, {
 
 const PORT = process.env.PORT || 3000;
 
-// Создание папки для загрузок
+// Настройка Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Создание папки для загрузок (для локального резервного копирования)
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Настройка multer для загрузки файлов
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Настройка multer для загрузки в память (для Cloudinary)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -184,11 +184,18 @@ app.get('/api/listings', async (req, res) => {
     
     let query = `
       SELECT l.*, u.name as owner_name, u.rating as owner_rating,
-             c.name_ru as category_name, r.name_ru as region_name
+             c.name_ru as category_name, r.name_ru as region_name,
+             COALESCE(
+               json_agg(
+                 lp.url ORDER BY lp."order"
+               ) FILTER (WHERE lp.url IS NOT NULL),
+               '[]'
+             ) as photos
       FROM listings l
       LEFT JOIN users u ON l.user_id = u.id
       LEFT JOIN categories c ON l.category_id = c.id
       LEFT JOIN regions r ON l.region_id = r.id
+      LEFT JOIN listing_photos lp ON l.id = lp.listing_id
       WHERE l.status = 'active'
     `;
     
@@ -213,6 +220,7 @@ app.get('/api/listings', async (req, res) => {
       paramIndex++;
     }
 
+    query += ' GROUP BY l.id, u.name, u.rating, c.name_ru, r.name_ru';
     query += ' ORDER BY l.created_at DESC LIMIT 50';
 
     const result = await pool.query(query, params);
@@ -385,11 +393,19 @@ app.get('/api/regions', async (req, res) => {
 app.get('/api/favorites', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT l.*, u.name as owner_name, u.rating as owner_rating
+      SELECT l.*, u.name as owner_name, u.rating as owner_rating,
+             COALESCE(
+               json_agg(
+                 lp.url ORDER BY lp."order"
+               ) FILTER (WHERE lp.url IS NOT NULL),
+               '[]'
+             ) as photos
       FROM favorites f
       JOIN listings l ON f.listing_id = l.id
       LEFT JOIN users u ON l.user_id = u.id
+      LEFT JOIN listing_photos lp ON l.id = lp.listing_id
       WHERE f.user_id = $1
+      GROUP BY l.id, u.name, u.rating, f.created_at
       ORDER BY f.created_at DESC
     `, [req.user.id]);
 
@@ -436,6 +452,31 @@ app.delete('/api/favorites/:listingId', authenticateToken, async (req, res) => {
 
 // ============= FILE UPLOAD =============
 
+// Функция загрузки в Cloudinary
+const uploadToCloudinary = (buffer, folder = 'autokg/listings') => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: folder,
+        resource_type: 'auto',
+        transformation: [
+          { width: 1920, height: 1080, crop: 'limit' },
+          { quality: 'auto:good' },
+          { fetch_format: 'auto' }
+        ]
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      }
+    );
+    uploadStream.end(buffer);
+  });
+};
+
 // Загрузка одного файла
 app.post('/api/upload', authenticateToken, upload.single('photo'), async (req, res) => {
   try {
@@ -443,10 +484,13 @@ app.post('/api/upload', authenticateToken, upload.single('photo'), async (req, r
       return res.status(400).json({ error: 'Файл не загружен' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // Загрузка в Cloudinary
+    const result = await uploadToCloudinary(req.file.buffer);
+
     res.json({
       message: 'Файл успешно загружен',
-      url: fileUrl
+      url: result.secure_url,
+      public_id: result.public_id
     });
   } catch (error) {
     console.error('Ошибка загрузки файла:', error);
@@ -461,7 +505,12 @@ app.post('/api/upload-multiple', authenticateToken, upload.array('photos', 10), 
       return res.status(400).json({ error: 'Файлы не загружены' });
     }
 
-    const fileUrls = req.files.map(file => `/uploads/${file.filename}`);
+    // Загрузка всех файлов в Cloudinary параллельно
+    const uploadPromises = req.files.map(file => uploadToCloudinary(file.buffer));
+    const results = await Promise.all(uploadPromises);
+
+    const fileUrls = results.map(result => result.secure_url);
+
     res.json({
       message: 'Файлы успешно загружены',
       urls: fileUrls
@@ -516,10 +565,20 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
 // Получить объявления пользователя
 app.get('/api/profile/listings', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM listings WHERE user_id = $1 ORDER BY created_at DESC',
-      [req.user.id]
-    );
+    const result = await pool.query(`
+      SELECT l.*,
+             COALESCE(
+               json_agg(
+                 lp.url ORDER BY lp."order"
+               ) FILTER (WHERE lp.url IS NOT NULL),
+               '[]'
+             ) as photos
+      FROM listings l
+      LEFT JOIN listing_photos lp ON l.id = lp.listing_id
+      WHERE l.user_id = $1
+      GROUP BY l.id
+      ORDER BY l.created_at DESC
+    `, [req.user.id]);
 
     res.json(result.rows);
   } catch (error) {
