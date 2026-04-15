@@ -171,12 +171,18 @@ const ProfileScreen = ({navigation}) => {
       </View>
 
       <View style={styles.menuSection}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity 
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('Menu')}
+        >
           <Ionicons name="settings-outline" size={24} color="#666" />
           <Text style={styles.menuText}>Настройки</Text>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity 
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('LanguageSelect')}
+        >
           <Ionicons name="language-outline" size={24} color="#666" />
           <Text style={styles.menuText}>Язык</Text>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />

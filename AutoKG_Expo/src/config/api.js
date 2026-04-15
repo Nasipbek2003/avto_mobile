@@ -245,4 +245,66 @@ export const api = {
     
     return response.json();
   },
+
+  // Chat
+  createChat: async (chatData) => {
+    try {
+      const headers = await getAuthHeaders();
+      console.log('Creating chat with data:', chatData);
+      console.log('Headers:', headers);
+      
+      const response = await fetch(`${API_URL}/chats`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(chatData),
+      });
+      
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Ошибка создания чата');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('createChat error:', error);
+      throw error;
+    }
+  },
+
+  getMessages: async (chatId) => {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/chats/${chatId}/messages`, {
+      headers,
+    });
+    
+    if (!response.ok) {
+      throw new Error('Ошибка загрузки сообщений');
+    }
+    
+    return response.json();
+  },
+
+  sendMessage: async (chatId, content) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/chats/${chatId}/messages`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ content }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Ошибка отправки сообщения');
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('sendMessage error:', error);
+      throw error;
+    }
+  },
 };

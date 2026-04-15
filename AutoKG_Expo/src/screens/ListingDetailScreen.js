@@ -11,7 +11,6 @@ import {
 import {Image} from 'expo-image';
 import {Ionicons} from '@expo/vector-icons';
 import {api} from '../config/api';
-import Car3DViewer from '../components/Car3DViewer';
 
 const {width} = Dimensions.get('window');
 
@@ -26,7 +25,6 @@ const ListingDetailScreen = ({route, navigation}) => {
 
   const [isFavorite, setIsFavorite] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [show3D, setShow3D] = useState(false);
 
   // Получаем изображения из объявления
   const getImages = () => {
@@ -54,11 +52,27 @@ const ListingDetailScreen = ({route, navigation}) => {
   };
 
   const handleChat = () => {
+    console.log('=== handleChat called ===');
+    console.log('listing:', listing);
+    console.log('listing.user_id:', listing.user_id);
+    console.log('listing.owner_name:', listing.owner_name);
+    console.log('=======================');
+    
+    if (!listing.user_id) {
+      Alert.alert('Ошибка', 'Информация о продавце недоступна');
+      return;
+    }
+    
     navigation.navigate('Chat', {
       chatId: listing.chat_id,
       otherUser: {
         id: listing.user_id,
         name: listing.owner_name || 'Продавец',
+      },
+      listing: {
+        id: listing.id,
+        title: listing.title,
+        price: listing.price,
       },
     });
   };
@@ -126,24 +140,7 @@ const ListingDetailScreen = ({route, navigation}) => {
             <Text style={styles.noImageText}>Нет фотографий</Text>
           </View>
         )}
-
-        <TouchableOpacity 
-          style={styles.threeDButton}
-          onPress={() => setShow3D(!show3D)}>
-          <Ionicons 
-            name={show3D ? 'camera' : 'cube'} 
-            size={20} 
-            color="#fff" 
-          />
-          <Text style={styles.threeDButtonText}>
-            {show3D ? 'Фото' : '3D'}
-          </Text>
-        </TouchableOpacity>
       </View>
-
-      {show3D && (
-        <Car3DViewer carModel={listing.brand} />
-      )}
 
       <View style={styles.content}>
         <Text style={styles.title}>{listing.title}</Text>
@@ -297,38 +294,6 @@ const styles = StyleSheet.create({
   activeIndicator: {
     backgroundColor: '#fff',
     width: 24,
-  },
-  threeDButton: {
-    position: 'absolute',
-    top: 60,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(124, 58, 237, 0.9)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  threeDButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  threeDViewer: {
-    height: 200,
-    backgroundColor: '#1a1a1a',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  threeDText: {
-    fontSize: 24,
-    color: '#fff',
-    marginBottom: 8,
-  },
-  threeDSubtext: {
-    fontSize: 14,
-    color: '#999',
   },
   content: {
     padding: 16,

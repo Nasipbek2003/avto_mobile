@@ -15,25 +15,44 @@ import socketService from '../services/socketService';
 import {api} from '../config/api';
 
 const ChatScreen = ({route, navigation}) => {
-  const {chatId, otherUser} = route.params || {};
+  const {chatId, otherUser, listing} = route.params || {};
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isTyping, setIsTyping] = useState(false);
+  const [showQuickReplies, setShowQuickReplies] = useState(true);
+  const [currentChatId, setCurrentChatId] = useState(chatId);
   const scrollViewRef = useRef();
-  const typingTimeoutRef = useRef(null);
+
+  // Логируем параметры при загрузке
+  useEffect(() => {
+    console.log('=== ChatScreen Parameters ===');
+    console.log('chatId:', chatId);
+    console.log('otherUser:', otherUser);
+    console.log('listing:', listing);
+    console.log('============================');
+  }, []);
+
+  // Шаблонные сообщения
+  const quickReplies = [
+    '👋 Здравствуйте! Интересует ваше объявление',
+    '💰 Какая окончательная цена?',
+    '📍 Где можно посмотреть?',
+    '🔧 Какое техническое состояние?',
+    '📄 Есть ли документы?',
+    '🚗 Возможен ли обмен?',
+  ];
 
   useEffect(() => {
     loadMessages();
     connectWebSocket();
 
     return () => {
-      if (chatId) {
-        socketService.leaveChat(chatId);
+      if (currentChatId) {
+        socketService.leaveChat(currentChatId);
         socketService.offNewMessage();
       }
     };
-  }, [chatId]);
+  }, [currentChatId]);
 
   useEffect(() => {
     scrollViewRef.current?.scrollToEnd({animated: true});
@@ -41,8 +60,8 @@ const ChatScreen = ({route, navigation}) => {
 
   const loadMessages = async () => {
     try {
-      if (chatId) {
-        const data = await api.getMessages(chatId);
+      if (currentChatId) {
+        const data = await api.getMessages(currentChatId);
         setMessages(data);
       }
     } catch (error) {
@@ -56,24 +75,12 @@ const ChatScreen = ({route, navigation}) => {
     try {
       await socketService.connect();
       
-      if (chatId) {
-        socketService.joinChat(chatId);
+      if (currentChatId) {
+        socketService.joinChat(currentChatId);
 
         socketService.onNewMessage((newMessage) => {
           console.log('📨 Новое сообщение:', newMessage);
           setMessages(prev => [...prev, newMessage]);
-        });
-
-        socketService.onUserTyping((data) => {
-          if (data.chatId === chatId) {
-            setIsTyping(true);
-          }
-        });
-
-        socketService.onUserStopTyping((data) => {
-          if (data.chatId === chatId) {
-            setIsTyping(false);
-          }
         });
       }
     } catch (error) {
@@ -81,31 +88,111 @@ const ChatScreen = ({route, navigation}) => {
     }
   };
 
-  const sendMessage = () => {
-    if (!message.trim() || !chatId) return;
+  const sendMessage = async () => {
+    if (!message.trim()) return;
 
     const messageText = message.trim();
+    
     setMessage('');
+    setShowQuickReplies(false);
 
-    socketService.sendMessage(chatId, messageText);
-    socketService.stopTyping(chatId);
+    try {
+      let chatIdToUse = currentChatId;
+
+      // Если нет chatId, создаем новый чат
+      if (!chatIdToUse && otherUser?.id) {
+        console.log('Creating new chat...');
+        const newChat = await api.createChat({
+          receiverId: otherUser.id,
+          message: messageText,
+          listingId: listing?.id || null,
+        });
+        
+        console.log('Chat created:', newChat);
+        chatIdToUse = newChat.chatId;
+        setCurrentChatId(chatIdToUse);
+        
+        // Подключаемся к WebSocket для нового чата
+        socketService.joinChat(chatIdToUse);
+        socketService.onNewMessage((newMessage) => {
+          console.log('📨 Новое сообщение:', newMessage);
+          setMessages(prev => [...prev, newMessage]);
+        });
+        
+        // Перезагружаем сообщения
+        await loadMessages();
+      } else if (chatIdToUse) {
+        // Отправляем через WebSocket если подключен
+        if (socketService.isConnected()) {
+          socketService.sendMessage(chatIdToUse, messageText);
+        } else {
+          // Fallback на REST API
+          await api.sendMessage(chatIdToUse, messageText);
+          await loadMessages();
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка отправки сообщения:', error);
+      alert('Не удалось отправить сообщение: ' + error.message);
+    }
+  };
+
+  const sendQuickReply = async (text) => {
+    console.log('=== sendQuickReply ===');
+    console.log('otherUser:', otherUser);
+    console.log('currentChatId:', currentChatId);
+    
+    if (!otherUser || !otherUser.id) {
+      alert('Ошибка: информация о получателе недоступна');
+      return;
+    }
+    
+    setMessage('');
+    setShowQuickReplies(false);
+    
+    try {
+      let chatIdToUse = currentChatId;
+
+      // Если нет chatId, создаем новый чат
+      if (!chatIdToUse) {
+        console.log('Creating new chat with quick reply...');
+        const newChat = await api.createChat({
+          receiverId: otherUser.id,
+          message: text,
+          listingId: listing?.id || null,
+        });
+        
+        console.log('Chat created:', newChat);
+        chatIdToUse = newChat.chatId;
+        setCurrentChatId(chatIdToUse);
+        
+        // Подключаемся к WebSocket для нового чата
+        socketService.joinChat(chatIdToUse);
+        socketService.onNewMessage((newMessage) => {
+          console.log('📨 Новое сообщение:', newMessage);
+          setMessages(prev => [...prev, newMessage]);
+        });
+        
+        // Перезагружаем сообщения
+        await loadMessages();
+      } else {
+        // Отправляем через WebSocket если подключен
+        if (socketService.isConnected()) {
+          socketService.sendMessage(chatIdToUse, text);
+        } else {
+          // Fallback на REST API
+          await api.sendMessage(chatIdToUse, text);
+          await loadMessages();
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка отправки быстрого ответа:', error);
+      alert('Не удалось отправить сообщение: ' + error.message);
+    }
   };
 
   const handleTyping = (text) => {
     setMessage(text);
-
-    if (text.length > 0 && chatId) {
-      socketService.startTyping(chatId);
-
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      typingTimeoutRef.current = setTimeout(() => {
-        socketService.stopTyping(chatId);
-      }, 3000);
-    } else if (chatId) {
-      socketService.stopTyping(chatId);
-    }
   };
 
   const formatTime = (dateString) => {
@@ -135,11 +222,7 @@ const ChatScreen = ({route, navigation}) => {
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.sellerName}>{otherUser?.name || 'Чат'}</Text>
-          {isTyping ? (
-            <Text style={styles.typingStatus}>печатает...</Text>
-          ) : (
-            <Text style={styles.onlineStatus}>онлайн</Text>
-          )}
+          <Text style={styles.onlineStatus}>онлайн</Text>
         </View>
         <TouchableOpacity>
           <Ionicons name="ellipsis-vertical" size={24} color="#333" />
@@ -153,6 +236,20 @@ const ChatScreen = ({route, navigation}) => {
         <View style={styles.dateHeader}>
           <Text style={styles.dateText}>Сегодня</Text>
         </View>
+
+        {messages.length === 0 && showQuickReplies && (
+          <View style={styles.quickRepliesContainer}>
+            <Text style={styles.quickRepliesTitle}>Быстрые сообщения:</Text>
+            {quickReplies.map((reply, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.quickReplyButton}
+                onPress={() => sendQuickReply(reply)}>
+                <Text style={styles.quickReplyText}>{reply}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {messages.map((msg) => (
           <View
@@ -186,9 +283,13 @@ const ChatScreen = ({route, navigation}) => {
       </ScrollView>
 
       <View style={styles.inputContainer}>
-        <TouchableOpacity style={styles.attachButton}>
-          <Ionicons name="attach" size={24} color="#666" />
-        </TouchableOpacity>
+        {!showQuickReplies && messages.length > 0 && (
+          <TouchableOpacity 
+            style={styles.quickRepliesToggle}
+            onPress={() => setShowQuickReplies(!showQuickReplies)}>
+            <Ionicons name="chatbox-ellipses-outline" size={24} color="#7c3aed" />
+          </TouchableOpacity>
+        )}
         <TextInput
           style={styles.input}
           placeholder="Сообщение..."
@@ -309,6 +410,27 @@ const styles = StyleSheet.create({
   otherMessageTime: {
     color: '#999',
   },
+  quickRepliesContainer: {
+    marginBottom: 20,
+  },
+  quickRepliesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 12,
+  },
+  quickReplyButton: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  quickReplyText: {
+    fontSize: 14,
+    color: '#333',
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -319,7 +441,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#e0e0e0',
     gap: 8,
   },
-  attachButton: {
+  quickRepliesToggle: {
     padding: 8,
   },
   input: {

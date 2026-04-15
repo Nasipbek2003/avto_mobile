@@ -660,6 +660,157 @@ app.post('/api/reviews', authenticateToken, async (req, res) => {
   }
 });
 
+// ============= CHAT ENDPOINTS =============
+
+// Создать новый чат
+app.post('/api/chats', authenticateToken, async (req, res) => {
+  try {
+    const { receiverId, message, listingId } = req.body;
+    const senderId = req.user.id;
+
+    console.log('=== Creating chat ===');
+    console.log('senderId:', senderId);
+    console.log('receiverId:', receiverId);
+    console.log('listingId:', listingId);
+    console.log('message:', message);
+
+    // Проверяем, существует ли уже чат между этими пользователями для этого объявления
+    let chat = await pool.query(
+      'SELECT id FROM chats WHERE (buyer_id = $1 AND seller_id = $2 AND listing_id = $3) OR (buyer_id = $2 AND seller_id = $1 AND listing_id = $3)',
+      [senderId, receiverId, listingId]
+    );
+
+    console.log('Existing chat:', chat.rows);
+
+    let chatId;
+    if (chat.rows.length > 0) {
+      chatId = chat.rows[0].id;
+      console.log('Using existing chat:', chatId);
+    } else {
+      // Создаем новый чат (senderId = buyer, receiverId = seller)
+      console.log('Creating new chat...');
+      const newChat = await pool.query(
+        'INSERT INTO chats (buyer_id, seller_id, listing_id) VALUES ($1, $2, $3) RETURNING id',
+        [senderId, receiverId, listingId]
+      );
+      chatId = newChat.rows[0].id;
+      console.log('New chat created:', chatId);
+    }
+
+    // Добавляем первое сообщение
+    if (message) {
+      console.log('Adding first message...');
+      await pool.query(
+        'INSERT INTO messages (chat_id, sender_id, content) VALUES ($1, $2, $3)',
+        [chatId, senderId, message]
+      );
+      console.log('Message added');
+    }
+
+    console.log('=== Chat created successfully ===');
+    res.json({ chatId, message: 'Чат создан успешно' });
+  } catch (error) {
+    console.error('=== Ошибка создания чата ===');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('============================');
+    res.status(500).json({ error: 'Ошибка создания чата: ' + error.message });
+  }
+});
+
+// Получить сообщения чата
+app.get('/api/chats/:chatId/messages', authenticateToken, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.user.id;
+
+    // Проверяем, что пользователь участник чата
+    const chat = await pool.query(
+      'SELECT * FROM chats WHERE id = $1 AND (buyer_id = $2 OR seller_id = $2)',
+      [chatId, userId]
+    );
+
+    if (chat.rows.length === 0) {
+      return res.status(403).json({ error: 'Доступ запрещен' });
+    }
+
+    // Получаем сообщения
+    const messages = await pool.query(
+      'SELECT m.*, u.name as sender_name FROM messages m LEFT JOIN users u ON m.sender_id = u.id WHERE m.chat_id = $1 ORDER BY m.created_at ASC',
+      [chatId]
+    );
+
+    res.json(messages.rows);
+  } catch (error) {
+    console.error('Ошибка получения сообщений:', error);
+    res.status(500).json({ error: 'Ошибка получения сообщений' });
+  }
+});
+
+// Отправить сообщение в чат
+app.post('/api/chats/:chatId/messages', authenticateToken, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { content } = req.body;
+    const userId = req.user.id;
+
+    // Проверяем, что пользователь участник чата
+    const chat = await pool.query(
+      'SELECT * FROM chats WHERE id = $1 AND (buyer_id = $2 OR seller_id = $2)',
+      [chatId, userId]
+    );
+
+    if (chat.rows.length === 0) {
+      return res.status(403).json({ error: 'Доступ запрещен' });
+    }
+
+    // Добавляем сообщение
+    const newMessage = await pool.query(
+      'INSERT INTO messages (chat_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *',
+      [chatId, userId, content]
+    );
+
+    res.json(newMessage.rows[0]);
+  } catch (error) {
+    console.error('Ошибка отправки сообщения:', error);
+    res.status(500).json({ error: 'Ошибка отправки сообщения' });
+  }
+});
+
+// Получить все чаты пользователя
+app.get('/api/chats', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const chats = await pool.query(
+      `SELECT c.id, c.listing_id, c.created_at,
+              CASE 
+                WHEN c.buyer_id = $1 THEN u2.name 
+                ELSE u1.name 
+              END as other_user_name,
+              CASE 
+                WHEN c.buyer_id = $1 THEN c.seller_id 
+                ELSE c.buyer_id 
+              END as other_user_id,
+              l.title as listing_title,
+              (SELECT content FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
+              (SELECT created_at FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_time
+       FROM chats c
+       LEFT JOIN users u1 ON c.buyer_id = u1.id
+       LEFT JOIN users u2 ON c.seller_id = u2.id
+       LEFT JOIN listings l ON c.listing_id = l.id
+       WHERE c.buyer_id = $1 OR c.seller_id = $1
+       ORDER BY last_message_time DESC NULLS LAST`,
+      [userId]
+    );
+
+    res.json(chats.rows);
+  } catch (error) {
+    console.error('Ошибка получения чатов:', error);
+    res.status(500).json({ error: 'Ошибка получения чатов' });
+  }
+});
+
 // ============= START SERVER =============
 
 // WebSocket для чатов
