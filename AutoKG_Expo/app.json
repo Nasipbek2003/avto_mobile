@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "AutoKG_Expo",
-    "slug": "AutoKG_Expo",
+    "name": "AutoKG",
+    "slug": "autokg",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,20 +10,52 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#7c3aed"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.autokg.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.autokg.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#7c3aed",
+      "androidMode": "default",
+      "androidCollapsedTitle": "AutoKG"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#7c3aed",
+          "defaultChannel": "default"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "autokg-project-id-12345"
+      }
     }
   }
 }

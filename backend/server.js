@@ -8,6 +8,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
+const { Expo } = require('expo-server-sdk');
 const pool = require('./db');
 require('dotenv').config();
 
@@ -19,6 +20,9 @@ const io = socketIo(server, {
     methods: ['GET', 'POST']
   }
 });
+
+// Инициализация Expo SDK для push уведомлений
+const expo = new Expo();
 
 const PORT = process.env.PORT || 3000;
 
@@ -542,6 +546,143 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
   }
 });
 
+// Получить публичный профиль продавца
+app.get('/api/users/:userId/profile', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const result = await pool.query(
+      'SELECT id, name, avatar_url, phone, rating, created_at FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Ошибка получения профиля продавца:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// === PUSH УВЕДОМЛЕНИЯ ===
+
+// Сохранить push токен пользователя
+app.post('/api/notifications/token', authenticateToken, async (req, res) => {
+  try {
+    const { expoPushToken } = req.body;
+    const userId = req.user.id;
+
+    // Проверяем валидность токена
+    if (!Expo.isExpoPushToken(expoPushToken)) {
+      return res.status(400).json({ error: 'Неверный формат push токена' });
+    }
+
+    // Сохраняем токен в базе данных
+    await pool.query(
+      'UPDATE users SET expo_push_token = $1 WHERE id = $2',
+      [expoPushToken, userId]
+    );
+
+    res.json({ success: true, message: 'Push токен сохранен' });
+  } catch (error) {
+    console.error('Ошибка сохранения push токена:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// Функция отправки push уведомления
+async function sendPushNotification(userId, title, body, data = {}) {
+  try {
+    // Получаем push токен пользователя
+    const result = await pool.query(
+      'SELECT expo_push_token FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].expo_push_token) {
+      console.log(`Push токен не найден для пользователя ${userId}`);
+      return;
+    }
+
+    const pushToken = result.rows[0].expo_push_token;
+
+    // Проверяем, это реальный Expo токен или фиктивный для разработки
+    if (pushToken.startsWith('DevToken[') || pushToken.startsWith('ExponentPushToken[simulator-')) {
+      console.log(`Режим разработки: симуляция push уведомления для пользователя ${userId}:`, title);
+      return;
+    }
+
+    // Проверяем валидность токена
+    if (!Expo.isExpoPushToken(pushToken)) {
+      console.log(`Неверный push токен для пользователя ${userId}`);
+      return;
+    }
+
+    // Создаем сообщение
+    const message = {
+      to: pushToken,
+      sound: 'default',
+      title,
+      body,
+      data,
+    };
+
+    // Отправляем уведомление
+    const chunks = expo.chunkPushNotifications([message]);
+    const tickets = [];
+
+    for (let chunk of chunks) {
+      try {
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        tickets.push(...ticketChunk);
+      } catch (error) {
+        console.error('Ошибка отправки push уведомления:', error);
+      }
+    }
+
+    console.log(`Push уведомление отправлено пользователю ${userId}:`, title);
+  } catch (error) {
+    console.error('Ошибка в sendPushNotification:', error);
+  }
+}
+
+// Получить объявления продавца
+app.get('/api/users/:userId/listings', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        l.*,
+        r.name_ru as region_name,
+        c.name_ru as category_name,
+        COALESCE(
+          JSON_AGG(
+            CASE WHEN lp.url IS NOT NULL 
+            THEN lp.url 
+            ELSE NULL END
+          ) FILTER (WHERE lp.url IS NOT NULL), 
+          '[]'
+        ) as photos
+      FROM listings l
+      LEFT JOIN regions r ON l.region_id = r.id
+      LEFT JOIN categories c ON l.category_id = c.id
+      LEFT JOIN listing_photos lp ON l.id = lp.listing_id
+      WHERE l.user_id = $1 AND l.status = 'active'
+      GROUP BY l.id, r.name_ru, c.name_ru
+      ORDER BY l.created_at DESC
+    `, [userId]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Ошибка получения объявлений продавца:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
 // Обновить профиль пользователя
 app.put('/api/profile', authenticateToken, async (req, res) => {
   try {
@@ -769,6 +910,39 @@ app.post('/api/chats/:chatId/messages', authenticateToken, async (req, res) => {
       'INSERT INTO messages (chat_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *',
       [chatId, userId, content]
     );
+
+    // Определяем получателя сообщения
+    const chatData = chat.rows[0];
+    const receiverId = chatData.buyer_id === userId ? chatData.seller_id : chatData.buyer_id;
+
+    // Получаем информацию об отправителе и объявлении
+    const senderInfo = await pool.query(
+      'SELECT name FROM users WHERE id = $1',
+      [userId]
+    );
+
+    const listingInfo = await pool.query(
+      'SELECT title FROM listings WHERE id = $1',
+      [chatData.listing_id]
+    );
+
+    // Отправляем push уведомление получателю
+    if (senderInfo.rows.length > 0) {
+      const senderName = senderInfo.rows[0].name;
+      const listingTitle = listingInfo.rows[0]?.title || 'Объявление';
+      
+      await sendPushNotification(
+        receiverId,
+        `Новое сообщение от ${senderName}`,
+        content.length > 50 ? content.substring(0, 50) + '...' : content,
+        {
+          type: 'new_message',
+          chatId: chatId,
+          senderId: userId,
+          listingTitle: listingTitle
+        }
+      );
+    }
 
     res.json(newMessage.rows[0]);
   } catch (error) {

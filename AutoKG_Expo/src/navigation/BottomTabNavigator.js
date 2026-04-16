@@ -1,7 +1,8 @@
 import React from 'react';
-import {Platform} from 'react-native';
+import {Platform, View, Text} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {Ionicons} from '@expo/vector-icons';
+import {useUnreadMessages} from '../context/UnreadMessagesContext';
 import HomeScreen from '../screens/HomeScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import ChatsScreen from '../screens/ChatsScreen';
@@ -11,6 +12,42 @@ import NewListingScreen from '../screens/NewListingScreen';
 const Tab = createBottomTabNavigator();
 
 const BottomTabNavigator = () => {
+  const { unreadCount } = useUnreadMessages();
+
+  // Компонент для отображения badge с количеством непрочитанных
+  const ChatTabIcon = ({ color, focused }) => (
+    <View style={{ position: 'relative' }}>
+      <Ionicons 
+        name={focused ? 'chatbubbles' : 'chatbubbles-outline'} 
+        size={26} 
+        color={color} 
+      />
+      {unreadCount > 0 && (
+        <View style={{
+          position: 'absolute',
+          right: -8,
+          top: -8,
+          backgroundColor: '#ef4444',
+          borderRadius: 10,
+          minWidth: 20,
+          height: 20,
+          justifyContent: 'center',
+          alignItems: 'center',
+          borderWidth: 2,
+          borderColor: '#fff',
+        }}>
+          <Text style={{
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 'bold',
+            textAlign: 'center',
+          }}>
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
   return (
     <Tab.Navigator
       screenOptions={{
@@ -77,13 +114,7 @@ const BottomTabNavigator = () => {
         component={ChatsScreen}
         options={{
           tabBarLabel: 'Чаты',
-          tabBarIcon: ({color, focused}) => (
-            <Ionicons 
-              name={focused ? 'chatbubbles' : 'chatbubbles-outline'} 
-              size={26} 
-              color={color} 
-            />
-          ),
+          tabBarIcon: ChatTabIcon,
         }}
       />
       <Tab.Screen

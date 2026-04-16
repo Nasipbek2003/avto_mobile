@@ -9,10 +9,12 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Image,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import {Ionicons} from '@expo/vector-icons';
-import {api} from '../config/api';
+import {api, getImageUrl} from '../config/api';
 
 const EditProfileScreen = ({navigation, route}) => {
   const [loading, setLoading] = useState(false);
@@ -42,6 +44,7 @@ const EditProfileScreen = ({navigation, route}) => {
 
   const pickImage = async () => {
     try {
+      // Запрашиваем разрешение
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (status !== 'granted') {
@@ -49,20 +52,22 @@ const EditProfileScreen = ({navigation, route}) => {
         return;
       }
 
-      const result = await ImagePicker.launchImagePickerAsync({
+      // Используем правильный метод из expo-image-picker
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets && result.assets[0]) {
         setUploading(true);
         try {
           const uploadResult = await api.uploadPhoto(result.assets[0].uri);
           setFormData({...formData, avatar_url: uploadResult.url});
           Alert.alert('Успешно', 'Фото загружено');
         } catch (error) {
+          console.error('Ошибка загрузки:', error);
           Alert.alert('Ошибка', 'Не удалось загрузить фото');
         } finally {
           setUploading(false);
@@ -74,15 +79,94 @@ const EditProfileScreen = ({navigation, route}) => {
     }
   };
 
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Ошибка', 'Необходимо разрешение для доступа к камере');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setUploading(true);
+        try {
+          const uploadResult = await api.uploadPhoto(result.assets[0].uri);
+          setFormData({...formData, avatar_url: uploadResult.url});
+          Alert.alert('Успешно', 'Фото загружено');
+        } catch (error) {
+          console.error('Ошибка загрузки:', error);
+          Alert.alert('Ошибка', 'Не удалось загрузить фото');
+        } finally {
+          setUploading(false);
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка съемки фото:', error);
+      Alert.alert('Ошибка', 'Не удалось сделать фото');
+    }
+  };
+
+  const showPhotoOptions = () => {
+    Alert.alert(
+      'Выберите действие',
+      'Откуда загрузить фото?',
+      [
+        {
+          text: 'Камера',
+          onPress: takePhoto,
+        },
+        {
+          text: 'Галерея',
+          onPress: pickImage,
+        },
+        {
+          text: 'Отмена',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
   const handleSave = async () => {
     if (!formData.name.trim()) {
       Alert.alert('Ошибка', 'Введите имя');
       return;
     }
 
+    // Валидация телефона (опционально)
+    if (formData.phone && formData.phone.trim()) {
+      const phoneRegex = /^\+?[0-9]{10,15}$/;
+      const cleanPhone = formData.phone.replace(/[\s\-\(\)]/g, '');
+      if (!phoneRegex.test(cleanPhone)) {
+        Alert.alert('Ошибка', 'Введите корректный номер телефона');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      await api.updateProfile(formData);
+      const updatedUser = await api.updateProfile(formData);
+      
+      // Обновляем данные пользователя в AsyncStorage
+      const userStr = await AsyncStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const updatedUserData = {
+          ...user,
+          name: formData.name,
+          phone: formData.phone,
+          avatar_url: formData.avatar_url,
+        };
+        await AsyncStorage.setItem('user', JSON.stringify(updatedUserData));
+      }
+      
       Alert.alert('Успешно', 'Профиль обновлен', [
         {
           text: 'OK',
@@ -114,27 +198,38 @@ const EditProfileScreen = ({navigation, route}) => {
         <View style={styles.avatarSection}>
           <TouchableOpacity 
             style={styles.avatarContainer}
-            onPress={pickImage}
+            onPress={showPhotoOptions}
             disabled={uploading}
           >
             {uploading ? (
               <ActivityIndicator size="large" color="#7c3aed" />
             ) : formData.avatar_url ? (
-              <Ionicons name="person" size={60} color="#fff" />
+              <Image 
+                source={{uri: getImageUrl(formData.avatar_url)}} 
+                style={styles.avatarImage}
+              />
             ) : (
               <Ionicons name="person-outline" size={60} color="#999" />
             )}
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.changePhotoButton}
-            onPress={pickImage}
+            onPress={showPhotoOptions}
             disabled={uploading}
           >
             <Ionicons name="camera" size={18} color="#7c3aed" />
             <Text style={styles.changePhotoText}>
-              {uploading ? 'Загрузка...' : 'Изменить фото'}
+              {uploading ? 'Загрузка...' : formData.avatar_url ? 'Изменить фото' : 'Добавить фото'}
             </Text>
           </TouchableOpacity>
+          {formData.avatar_url && (
+            <TouchableOpacity 
+              style={styles.removePhotoButton}
+              onPress={() => setFormData({...formData, avatar_url: ''})}
+            >
+              <Text style={styles.removePhotoText}>Удалить фото</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.form}>
@@ -156,7 +251,11 @@ const EditProfileScreen = ({navigation, route}) => {
               value={formData.phone}
               onChangeText={(text) => setFormData({...formData, phone: text})}
               keyboardType="phone-pad"
+              maxLength={20}
             />
+            <Text style={styles.helperText}>
+              Ваш номер телефона будет виден покупателям
+            </Text>
           </View>
 
           <View style={styles.infoBox}>
@@ -227,7 +326,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#e0e0e0',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -236,6 +335,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   changePhotoButton: {
     flexDirection: 'row',
@@ -246,6 +351,14 @@ const styles = StyleSheet.create({
     color: '#7c3aed',
     fontSize: 15,
     fontWeight: '600',
+  },
+  removePhotoButton: {
+    marginTop: 8,
+  },
+  removePhotoText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '500',
   },
   form: {
     marginTop: 16,
@@ -268,6 +381,11 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 16,
     backgroundColor: '#fff',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 6,
   },
   infoBox: {
     flexDirection: 'row',

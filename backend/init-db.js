@@ -14,6 +14,7 @@ const createTables = async () => {
         avatar_url VARCHAR(500),
         phone VARCHAR(50),
         rating DECIMAL(2,1) DEFAULT 0,
+        expo_push_token VARCHAR(500),
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
@@ -114,6 +115,21 @@ const createTables = async () => {
       );
     `);
     console.log('✅ Таблица messages создана');
+
+    // Таблица отзывов
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        id SERIAL PRIMARY KEY,
+        reviewer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        reviewed_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        listing_id INTEGER REFERENCES listings(id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        comment TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(reviewer_id, reviewed_id, listing_id)
+      );
+    `);
+    console.log('✅ Таблица reviews создана');
 
     console.log('🎉 Все таблицы успешно созданы!');
     

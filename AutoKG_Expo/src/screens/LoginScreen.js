@@ -79,8 +79,19 @@ const LoginScreen = ({navigation}) => {
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
 
-      // Переходим на главный экран без уведомления
-      navigation.replace('Main');
+      // Отправляем push токен на сервер
+      try {
+        const expoPushToken = await AsyncStorage.getItem('expoPushToken');
+        if (expoPushToken) {
+          const { api } = require('../config/api');
+          await api.sendPushToken(expoPushToken);
+        }
+      } catch (error) {
+        console.error('Ошибка отправки push токена:', error);
+      }
+
+      // Возвращаемся на предыдущий экран
+      navigation.goBack();
     } catch (error) {
       console.error('Ошибка авторизации:', error);
       setError('Не удалось подключиться к серверу');

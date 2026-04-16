@@ -115,158 +115,164 @@ const SearchScreen = ({navigation}) => {
         </TouchableOpacity>
       </View>
 
-      {showFilters && (
-        <ScrollView style={styles.filtersContainer}>
-          <Text style={styles.filterTitle}>Фильтры</Text>
-          
-          <Text style={styles.label}>Категория</Text>
-          <TouchableOpacity
-            style={styles.selectButton}
-            onPress={() =>
-              navigation.navigate('CategorySelect', {
-                currentCategory: categories.find(c => c.id.toString() === selectedCategory),
-                onSelect: (category) => setSelectedCategory(category.id.toString()),
-              })
-            }>
-            <Text style={styles.selectButtonText}>
-              {categories.find(c => c.id.toString() === selectedCategory)?.name_ru || 'Все категории'}
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-
-          <Text style={styles.label}>Регион</Text>
-          <TouchableOpacity
-            style={styles.selectButton}
-            onPress={() =>
-              navigation.navigate('RegionSelect', {
-                currentRegion: regions.find(r => r.id.toString() === selectedRegion),
-                onSelect: (region) => setSelectedRegion(region.id.toString()),
-              })
-            }>
-            <Text style={styles.selectButtonText}>
-              {regions.find(r => r.id.toString() === selectedRegion)?.name_ru || 'Все регионы'}
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-
-          <Text style={styles.label}>Цена ($)</Text>
-          <View style={styles.rangeContainer}>
-            <TextInput
-              style={styles.rangeInput}
-              placeholder="От"
-              value={minPrice}
-              onChangeText={setMinPrice}
-              keyboardType="numeric"
-            />
-            <Text style={styles.rangeSeparator}>—</Text>
-            <TextInput
-              style={styles.rangeInput}
-              placeholder="До"
-              value={maxPrice}
-              onChangeText={setMaxPrice}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <Text style={styles.label}>Год выпуска</Text>
-          <View style={styles.rangeContainer}>
-            <TextInput
-              style={styles.rangeInput}
-              placeholder="От"
-              value={minYear}
-              onChangeText={setMinYear}
-              keyboardType="numeric"
-            />
-            <Text style={styles.rangeSeparator}>—</Text>
-            <TextInput
-              style={styles.rangeInput}
-              placeholder="До"
-              value={maxYear}
-              onChangeText={setMaxYear}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <Text style={styles.label}>Тип топлива</Text>
-          <TouchableOpacity
-            style={styles.selectButton}
-            onPress={() =>
-              navigation.navigate('FuelTypeSelect', {
-                currentFuelType: fuelType,
-                onSelect: (fuel) => setFuelType(fuel),
-              })
-            }>
-            <Text style={styles.selectButtonText}>
-              {fuelType || 'Любой'}
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-
-          <View style={styles.filterButtons}>
-            <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
-              <Text style={styles.resetButtonText}>Сбросить</Text>
+      <ScrollView style={styles.scrollContainer}>
+        {showFilters && (
+          <View style={styles.filtersContainer}>
+            <Text style={styles.filterTitle}>Фильтры</Text>
+            
+            <Text style={styles.label}>Категория</Text>
+            <TouchableOpacity
+              style={styles.selectButton}
+              onPress={() =>
+                navigation.navigate('CategorySelect', {
+                  currentCategory: categories.find(c => c.id.toString() === selectedCategory),
+                  onSelect: (category) => setSelectedCategory(category.id.toString()),
+                })
+              }>
+              <Text style={styles.selectButtonText}>
+                {categories.find(c => c.id.toString() === selectedCategory)?.name_ru || 'Все категории'}
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.applyButton} onPress={handleSearch}>
-              <Text style={styles.applyButtonText}>Применить</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      )}
 
-      <ScrollView style={styles.resultsContainer}>
-        {loading ? (
-          <ActivityIndicator size="large" color="#7c3aed" style={styles.loader} />
-        ) : results.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {searchQuery || selectedCategory || selectedRegion 
-                ? 'Ничего не найдено' 
-                : 'Введите запрос для поиска'}
-            </Text>
-          </View>
-        ) : (
-          <>
-            <Text style={styles.resultsCount}>Найдено: {results.length}</Text>
-            {results.map(listing => (
-              <TouchableOpacity
-                key={listing.id}
-                style={styles.resultCard}
-                onPress={() => navigation.navigate('ListingDetail', {listing})}>
-                <View style={styles.resultImage}>
-                  {listing.photos && listing.photos.length > 0 ? (
-                    <Image
-                      source={{
-                        uri: (() => {
-                          const photos = typeof listing.photos === 'string' 
-                            ? JSON.parse(listing.photos) 
-                            : listing.photos;
-                          // Cloudinary URL уже полный
-                          return photos[0];
-                        })()
-                      }}
-                      style={styles.resultImageFull}
-                      contentFit="cover"
-                      transition={200}
-                    />
-                  ) : (
-                    <Ionicons name="car-sport" size={48} color="#999" />
-                  )}
-                </View>
-                <View style={styles.resultInfo}>
-                  <Text style={styles.resultTitle}>{listing.title}</Text>
-                  <Text style={styles.resultPrice}>${listing.price?.toLocaleString()}</Text>
-                  <Text style={styles.resultDetails}>
-                    {listing.year} • {listing.mileage?.toLocaleString()} км
-                  </Text>
-                  <View style={styles.locationRow}>
-                    <Ionicons name="location" size={14} color="#666" />
-                    <Text style={styles.resultLocation}>{listing.region_name}</Text>
-                  </View>
-                </View>
+            <Text style={styles.label}>Регион</Text>
+            <TouchableOpacity
+              style={styles.selectButton}
+              onPress={() =>
+                navigation.navigate('RegionSelect', {
+                  currentRegion: regions.find(r => r.id.toString() === selectedRegion),
+                  onSelect: (region) => setSelectedRegion(region.id.toString()),
+                })
+              }>
+              <Text style={styles.selectButtonText}>
+                {regions.find(r => r.id.toString() === selectedRegion)?.name_ru || 'Все регионы'}
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
+            </TouchableOpacity>
+
+            <Text style={styles.label}>Цена ($)</Text>
+            <View style={styles.rangeContainer}>
+              <TextInput
+                style={styles.rangeInput}
+                placeholder="От"
+                value={minPrice}
+                onChangeText={setMinPrice}
+                keyboardType="numeric"
+              />
+              <Text style={styles.rangeSeparator}>—</Text>
+              <TextInput
+                style={styles.rangeInput}
+                placeholder="До"
+                value={maxPrice}
+                onChangeText={setMaxPrice}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <Text style={styles.label}>Год выпуска</Text>
+            <View style={styles.rangeContainer}>
+              <TextInput
+                style={styles.rangeInput}
+                placeholder="От"
+                value={minYear}
+                onChangeText={setMinYear}
+                keyboardType="numeric"
+              />
+              <Text style={styles.rangeSeparator}>—</Text>
+              <TextInput
+                style={styles.rangeInput}
+                placeholder="До"
+                value={maxYear}
+                onChangeText={setMaxYear}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <Text style={styles.label}>Тип топлива</Text>
+            <TouchableOpacity
+              style={styles.selectButton}
+              onPress={() =>
+                navigation.navigate('FuelTypeSelect', {
+                  currentFuelType: fuelType,
+                  onSelect: (fuel) => setFuelType(fuel),
+                })
+              }>
+              <Text style={styles.selectButtonText}>
+                {fuelType || 'Любой'}
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
+            </TouchableOpacity>
+
+            <View style={styles.filterButtons}>
+              <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
+                <Text style={styles.resetButtonText}>Сбросить</Text>
               </TouchableOpacity>
-            ))}
-          </>
+              <TouchableOpacity 
+                style={styles.applyButton} 
+                onPress={() => {
+                  handleSearch();
+                  setShowFilters(false);
+                }}>
+                <Text style={styles.applyButtonText}>Применить</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
+
+        <View style={styles.resultsContainer}>
+          {loading ? (
+            <ActivityIndicator size="large" color="#7c3aed" style={styles.loader} />
+          ) : results.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {searchQuery || selectedCategory || selectedRegion 
+                  ? 'Ничего не найдено' 
+                  : 'Введите запрос для поиска'}
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.resultsCount}>Найдено: {results.length}</Text>
+              {results.map(listing => (
+                <TouchableOpacity
+                  key={listing.id}
+                  style={styles.resultCard}
+                  onPress={() => navigation.navigate('ListingDetail', {listing})}>
+                  <View style={styles.resultImage}>
+                    {listing.photos && listing.photos.length > 0 ? (
+                      <Image
+                        source={{
+                          uri: (() => {
+                            const photos = typeof listing.photos === 'string' 
+                              ? JSON.parse(listing.photos) 
+                              : listing.photos;
+                            return photos[0];
+                          })()
+                        }}
+                        style={styles.resultImageFull}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    ) : (
+                      <Ionicons name="car-sport" size={48} color="#999" />
+                    )}
+                  </View>
+                  <View style={styles.resultInfo}>
+                    <Text style={styles.resultTitle}>{listing.title}</Text>
+                    <Text style={styles.resultPrice}>${listing.price?.toLocaleString()}</Text>
+                    <Text style={styles.resultDetails}>
+                      {listing.year} • {listing.mileage?.toLocaleString()} км
+                    </Text>
+                    <View style={styles.locationRow}>
+                      <Ionicons name="location" size={14} color="#666" />
+                      <Text style={styles.resultLocation}>{listing.region_name}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -312,10 +318,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
   },
+  scrollContainer: {
+    flex: 1,
+  },
   filtersContainer: {
     backgroundColor: '#fff',
     padding: 16,
-    maxHeight: 400,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   filterTitle: {
     fontSize: 18,
@@ -396,6 +406,7 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     flex: 1,
+    paddingBottom: 20,
   },
   loader: {
     marginTop: 40,

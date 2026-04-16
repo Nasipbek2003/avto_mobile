@@ -108,6 +108,22 @@ export const api = {
     return response.json();
   },
 
+  getSellerProfile: async (sellerId) => {
+    const response = await fetch(`${API_URL}/users/${sellerId}/profile`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+
+  getSellerListings: async (sellerId) => {
+    const response = await fetch(`${API_URL}/users/${sellerId}/listings`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+
   getUserListings: async () => {
     const headers = await getAuthHeaders();
     const response = await fetch(`${API_URL}/profile/listings`, { headers });
@@ -246,6 +262,22 @@ export const api = {
     return response.json();
   },
 
+  // Push Notifications
+  sendPushToken: async (expoPushToken) => {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/notifications/token`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ expoPushToken }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Ошибка отправки push токена');
+    }
+    
+    return response.json();
+  },
+
   // Chat
   createChat: async (chatData) => {
     try {
@@ -304,6 +336,24 @@ export const api = {
       return response.json();
     } catch (error) {
       console.error('sendMessage error:', error);
+      throw error;
+    }
+  },
+
+  getChats: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/chats`, {
+        headers,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Ошибка загрузки чатов');
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('getChats error:', error);
       throw error;
     }
   },

@@ -13,12 +13,16 @@ import {
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {api} from '../config/api';
 
 const NewListingScreen = ({navigation, route}) => {
   const editMode = route.params?.editMode || false;
   const existingListing = route.params?.listing || null;
 
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  
   const [title, setTitle] = useState(existingListing?.title || '');
   const [description, setDescription] = useState(existingListing?.description || '');
   const [price, setPrice] = useState(existingListing?.price?.toString() || '');
@@ -39,7 +43,7 @@ const NewListingScreen = ({navigation, route}) => {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    loadData();
+    checkAuthAndLoadData();
     requestPermissions();
     
     // Очистка состояния при открытии экрана для создания нового объявления
@@ -47,6 +51,27 @@ const NewListingScreen = ({navigation, route}) => {
       resetForm();
     }
   }, [route.params]);
+
+  const checkAuthAndLoadData = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (token) {
+        setIsAuthenticated(true);
+        await loadData();
+      } else {
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.error('Ошибка проверки авторизации:', error);
+      setIsAuthenticated(false);
+    } finally {
+      setCheckingAuth(false);
+    }
+  };
+
+  const handleLogin = () => {
+    navigation.navigate('Login');
+  };
 
   const resetForm = () => {
     if (!editMode) {
@@ -228,6 +253,76 @@ const NewListingScreen = ({navigation, route}) => {
     }
   };
 
+  if (checkingAuth) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#7c3aed" />
+      </View>
+    );
+  }
+
+  // Экран для неавторизованных пользователей
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#7c3aed" />
+            <Text style={styles.backButtonText}>Назад</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Создать объявление</Text>
+          <View style={{width: 80}} />
+        </View>
+
+        <ScrollView style={styles.guestContainer}>
+          <View style={styles.guestContent}>
+            <View style={styles.guestIconContainer}>
+              <Ionicons name="add-circle-outline" size={80} color="#7c3aed" />
+            </View>
+            
+            <Text style={styles.guestTitle}>Войдите, чтобы создать объявление</Text>
+            <Text style={styles.guestSubtitle}>
+              Для размещения объявлений о продаже автомобилей необходимо войти в аккаунт или зарегистрироваться
+            </Text>
+
+            <View style={styles.guestFeatures}>
+              <View style={styles.guestFeatureItem}>
+                <Ionicons name="shield-checkmark" size={24} color="#4ade80" />
+                <Text style={styles.guestFeatureText}>Безопасные сделки</Text>
+              </View>
+              <View style={styles.guestFeatureItem}>
+                <Ionicons name="chatbubbles" size={24} color="#4ade80" />
+                <Text style={styles.guestFeatureText}>Прямое общение с покупателями</Text>
+              </View>
+              <View style={styles.guestFeatureItem}>
+                <Ionicons name="analytics" size={24} color="#4ade80" />
+                <Text style={styles.guestFeatureText}>Статистика просмотров</Text>
+              </View>
+            </View>
+
+            <View style={styles.guestButtons}>
+              <TouchableOpacity 
+                style={styles.guestLoginButton}
+                onPress={handleLogin}
+              >
+                <Ionicons name="log-in-outline" size={20} color="#fff" style={{marginRight: 8}} />
+                <Text style={styles.guestLoginButtonText}>Войти в аккаунт</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.guestRegisterButton}
+                onPress={handleLogin}
+              >
+                <Ionicons name="person-add-outline" size={20} color="#7c3aed" style={{marginRight: 8}} />
+                <Text style={styles.guestRegisterButtonText}>Создать аккаунт</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -407,6 +502,88 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  // Стили для неавторизованных пользователей
+  guestContainer: {
+    flex: 1,
+  },
+  guestContent: {
+    backgroundColor: '#fff',
+    margin: 16,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  guestIconContainer: {
+    marginBottom: 24,
+  },
+  guestTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  guestSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  guestFeatures: {
+    width: '100%',
+    marginBottom: 32,
+  },
+  guestFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  guestFeatureText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  guestButtons: {
+    width: '100%',
+    gap: 12,
+  },
+  guestLoginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7c3aed',
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  guestLoginButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  guestRegisterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#7c3aed',
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  guestRegisterButtonText: {
+    color: '#7c3aed',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Оригинальные стили
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

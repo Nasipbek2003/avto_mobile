@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -7,28 +7,88 @@ import {
   ScrollView,
   Alert,
   Platform,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {api, getImageUrl} from '../config/api';
+import {useFocusEffect} from '@react-navigation/native';
+import NotificationService from '../services/NotificationService';
 
 const MenuScreen = ({navigation}) => {
-  const [currentLanguage, setCurrentLanguage] = useState('RU');
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserData();
+    }, [])
+  );
+
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
+      const token = await AsyncStorage.getItem('token');
+      if (token) {
+        const profile = await api.getProfile();
+        setUser(profile);
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки профиля:', error);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Выход',
+      'Вы уверены, что хотите выйти?',
+      [
+        {text: 'Отмена', style: 'cancel'},
+        {
+          text: 'Выйти',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('user');
+            setUser(null);
+            Alert.alert('Успешно', 'Вы вышли из аккаунта');
+          },
+        },
+      ]
+    );
+  };
+
+  const formatRating = (rating) => {
+    if (!rating || rating === null || rating === undefined) return '0.0';
+    const numRating = Number(rating);
+    if (isNaN(numRating)) return '0.0';
+    return numRating.toFixed(1);
+  };
 
   const menuItems = [
-    {
-      id: 'login',
-      icon: 'person-circle-outline',
-      title: 'Login / Register',
-      subtitle: 'Войти или создать аккаунт',
-      onPress: () => navigation.navigate('Login'),
-    },
-    {
-      id: 'language',
-      icon: 'language-outline',
-      title: 'Language',
-      subtitle: `Текущий: ${currentLanguage}`,
-      onPress: () => navigation.navigate('LanguageSelect'),
-    },
+    ...(user ? [
+      {
+        id: 'profile',
+        icon: 'person-outline',
+        title: 'Редактировать профиль',
+        subtitle: 'Изменить данные профиля',
+        onPress: () => navigation.navigate('EditProfile'),
+      },
+    ] : [
+      {
+        id: 'login',
+        icon: 'person-circle-outline',
+        title: 'Login / Register',
+        subtitle: 'Войти или создать аккаунт',
+        onPress: () => navigation.navigate('Login'),
+      },
+    ]),
     {
       id: 'search',
       icon: 'search-outline',
@@ -79,6 +139,34 @@ const MenuScreen = ({navigation}) => {
         );
       },
     },
+    {
+      id: 'test-notification',
+      icon: 'notifications-outline',
+      title: 'Тест уведомлений',
+      subtitle: 'Проверить push уведомления',
+      onPress: async () => {
+        try {
+          await NotificationService.simulatePushNotification(
+            'Тестовое уведомление',
+            'Это тестовое сообщение от AutoKG',
+            { type: 'new_message', chatId: '123' }
+          );
+          Alert.alert('Успешно', 'Тестовое уведомление отправлено!');
+        } catch (error) {
+          console.error('Ошибка тестирования уведомлений:', error);
+          Alert.alert('Ошибка', 'Не удалось отправить уведомление');
+        }
+      },
+    },
+    ...(user ? [
+      {
+        id: 'logout',
+        icon: 'log-out-outline',
+        title: 'Выйти',
+        subtitle: 'Выйти из аккаунта',
+        onPress: handleLogout,
+      },
+    ] : []),
   ];
 
   return (
@@ -95,13 +183,56 @@ const MenuScreen = ({navigation}) => {
       </View>
 
       <ScrollView style={styles.content}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="car-sport" size={60} color="#7c3aed" />
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#7c3aed" />
           </View>
-          <Text style={styles.appName}>Auto.KG</Text>
-          <Text style={styles.appTagline}>Маркетплейс автомобилей</Text>
-        </View>
+        ) : user ? (
+          <View style={styles.profileContainer}>
+            <TouchableOpacity 
+              style={styles.profileCard}
+              onPress={() => navigation.navigate('EditProfile')}
+            >
+              <View style={styles.avatarWrapper}>
+                {user.avatar_url ? (
+                  <Image 
+                    source={{uri: getImageUrl(user.avatar_url)}} 
+                    style={styles.avatar}
+                  />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="person" size={40} color="#7c3aed" />
+                  </View>
+                )}
+              </View>
+              <View style={styles.profileInfo}>
+                <Text style={styles.userName}>{user.name}</Text>
+                <Text style={styles.userEmail}>{user.email}</Text>
+                {user.phone && (
+                  <View style={styles.phoneContainer}>
+                    <Ionicons name="call-outline" size={14} color="#666" />
+                    <Text style={styles.userPhone}>{user.phone}</Text>
+                  </View>
+                )}
+                <View style={styles.ratingContainer}>
+                  <Ionicons name="star" size={16} color="#fbbf24" />
+                  <Text style={styles.ratingText}>
+                    {formatRating(user.rating)}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color="#ccc" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.logoContainer}>
+            <View style={styles.logoCircle}>
+              <Ionicons name="car-sport" size={60} color="#7c3aed" />
+            </View>
+            <Text style={styles.appName}>Auto.KG</Text>
+            <Text style={styles.appTagline}>Маркетплейс автомобилей</Text>
+          </View>
+        )}
 
         <View style={styles.menuList}>
           {menuItems.map((item) => (
@@ -157,6 +288,73 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  loadingContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+  },
+  profileContainer: {
+    backgroundColor: '#fff',
+    paddingVertical: 20,
+  },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  avatarWrapper: {
+    marginRight: 16,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#e0e0e0',
+  },
+  avatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#7c3aed',
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 6,
+  },
+  phoneContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  userPhone: {
+    fontSize: 14,
+    color: '#666',
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
   },
   logoContainer: {
     alignItems: 'center',

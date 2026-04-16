@@ -189,7 +189,20 @@ const ListingDetailScreen = ({route, navigation}) => {
 
         <View style={styles.sellerSection}>
           <Text style={styles.sectionTitle}>Продавец</Text>
-          <View style={styles.sellerInfo}>
+          <TouchableOpacity 
+            style={styles.sellerInfo}
+            onPress={() => {
+              console.log('Navigating to SellerProfile with:', {
+                sellerId: listing.user_id,
+                sellerName: listing.owner_name,
+                listing: listing
+              });
+              navigation.navigate('SellerProfile', {
+                sellerId: listing.user_id,
+                sellerName: listing.owner_name
+              });
+            }}
+          >
             <View style={styles.sellerAvatarContainer}>
               <Ionicons name="person" size={32} color="#7c3aed" />
             </View>
@@ -201,8 +214,10 @@ const ListingDetailScreen = ({route, navigation}) => {
                   {listing.owner_rating || '5.0'} (Новый пользователь)
                 </Text>
               </View>
+              <Text style={styles.viewProfileText}>Нажмите для просмотра профиля</Text>
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.chatButton} onPress={handleChat}>
             <Ionicons name="chatbubble" size={20} color="#fff" />
             <Text style={styles.chatButtonText}>Написать продавцу</Text>
@@ -347,6 +362,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    padding: 4,
+    borderRadius: 8,
   },
   sellerAvatarContainer: {
     width: 56,
@@ -373,6 +390,11 @@ const styles = StyleSheet.create({
   sellerRating: {
     fontSize: 14,
     color: '#666',
+  },
+  viewProfileText: {
+    fontSize: 12,
+    color: '#7c3aed',
+    marginTop: 4,
   },
   chatButton: {
     flexDirection: 'row',

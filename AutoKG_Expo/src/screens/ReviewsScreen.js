@@ -14,7 +14,7 @@ import {Ionicons} from '@expo/vector-icons';
 import {api} from '../config/api';
 
 const ReviewsScreen = ({route, navigation}) => {
-  const {userId, userName, listingId} = route.params;
+  const {userId, userName, listingId, canAddReview} = route.params;
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddReview, setShowAddReview] = useState(false);
@@ -47,7 +47,7 @@ const ReviewsScreen = ({route, navigation}) => {
     try {
       await api.addReview({
         reviewed_id: userId,
-        listing_id: listingId,
+        listing_id: listingId || null, // Может быть null для общих отзывов
         rating,
         comment: comment.trim(),
       });
@@ -115,7 +115,7 @@ const ReviewsScreen = ({route, navigation}) => {
             {renderStars(Math.round(calculateAverageRating()))}
             <Text style={styles.reviewCount}>({reviews.length})</Text>
           </View>
-          {listingId && (
+          {(listingId || canAddReview) && (
             <TouchableOpacity
               style={styles.addReviewButton}
               onPress={() => setShowAddReview(!showAddReview)}>

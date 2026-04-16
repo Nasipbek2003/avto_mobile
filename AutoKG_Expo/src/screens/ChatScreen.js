@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Ionicons} from '@expo/vector-icons';
 import socketService from '../services/socketService';
 import {api} from '../config/api';
@@ -21,16 +22,9 @@ const ChatScreen = ({route, navigation}) => {
   const [loading, setLoading] = useState(true);
   const [showQuickReplies, setShowQuickReplies] = useState(true);
   const [currentChatId, setCurrentChatId] = useState(chatId);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const scrollViewRef = useRef();
-
-  // Логируем параметры при загрузке
-  useEffect(() => {
-    console.log('=== ChatScreen Parameters ===');
-    console.log('chatId:', chatId);
-    console.log('otherUser:', otherUser);
-    console.log('listing:', listing);
-    console.log('============================');
-  }, []);
+  const pollIntervalRef = useRef(null);
 
   // Шаблонные сообщения
   const quickReplies = [
@@ -43,10 +37,14 @@ const ChatScreen = ({route, navigation}) => {
   ];
 
   useEffect(() => {
+    loadCurrentUser();
     loadMessages();
     connectWebSocket();
 
     return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
       if (currentChatId) {
         socketService.leaveChat(currentChatId);
         socketService.offNewMessage();
@@ -57,6 +55,19 @@ const ChatScreen = ({route, navigation}) => {
   useEffect(() => {
     scrollViewRef.current?.scrollToEnd({animated: true});
   }, [messages]);
+
+  const loadCurrentUser = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setCurrentUserId(user.id);
+        console.log('👤 Текущий пользователь ID:', user.id);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки текущего пользователя:', error);
+    }
+  };
 
   const loadMessages = async () => {
     try {
@@ -73,18 +84,26 @@ const ChatScreen = ({route, navigation}) => {
 
   const connectWebSocket = async () => {
     try {
+      console.log('🔌 Подключение к WebSocket...');
       await socketService.connect();
       
       if (currentChatId) {
+        console.log('👥 Присоединение к чату:', currentChatId);
         socketService.joinChat(currentChatId);
 
         socketService.onNewMessage((newMessage) => {
-          console.log('📨 Новое сообщение:', newMessage);
-          setMessages(prev => [...prev, newMessage]);
+          console.log('📨 Получено новое сообщение:', newMessage);
+          setMessages(prev => {
+            // Проверяем, нет ли уже этого сообщения
+            if (prev.find(m => m.id === newMessage.id)) {
+              return prev;
+            }
+            return [...prev, newMessage];
+          });
         });
       }
     } catch (error) {
-      console.error('Ошибка подключения WebSocket:', error);
+      console.error('❌ Ошибка подключения WebSocket:', error);
     }
   };
 
@@ -92,56 +111,51 @@ const ChatScreen = ({route, navigation}) => {
     if (!message.trim()) return;
 
     const messageText = message.trim();
-    
     setMessage('');
     setShowQuickReplies(false);
 
     try {
       let chatIdToUse = currentChatId;
 
-      // Если нет chatId, создаем новый чат
+      // Если нет chatId, создаем новый чат через API
       if (!chatIdToUse && otherUser?.id) {
-        console.log('Creating new chat...');
+        console.log('📝 Создание нового чата...');
         const newChat = await api.createChat({
           receiverId: otherUser.id,
           message: messageText,
           listingId: listing?.id || null,
         });
         
-        console.log('Chat created:', newChat);
         chatIdToUse = newChat.chatId;
         setCurrentChatId(chatIdToUse);
+        console.log('✅ Чат создан:', chatIdToUse);
         
         // Подключаемся к WebSocket для нового чата
         socketService.joinChat(chatIdToUse);
         socketService.onNewMessage((newMessage) => {
-          console.log('📨 Новое сообщение:', newMessage);
-          setMessages(prev => [...prev, newMessage]);
+          console.log('📨 Получено новое сообщение:', newMessage);
+          setMessages(prev => {
+            if (prev.find(m => m.id === newMessage.id)) {
+              return prev;
+            }
+            return [...prev, newMessage];
+          });
         });
         
-        // Перезагружаем сообщения
+        // Загружаем сообщения
         await loadMessages();
       } else if (chatIdToUse) {
-        // Отправляем через WebSocket если подключен
-        if (socketService.isConnected()) {
-          socketService.sendMessage(chatIdToUse, messageText);
-        } else {
-          // Fallback на REST API
-          await api.sendMessage(chatIdToUse, messageText);
-          await loadMessages();
-        }
+        // Отправляем через WebSocket
+        console.log('📤 Отправка через WebSocket...');
+        socketService.sendMessage(chatIdToUse, messageText);
       }
     } catch (error) {
-      console.error('Ошибка отправки сообщения:', error);
-      alert('Не удалось отправить сообщение: ' + error.message);
+      console.error('❌ Ошибка отправки сообщения:', error);
+      alert('Не удалось отправить сообщение');
     }
   };
 
   const sendQuickReply = async (text) => {
-    console.log('=== sendQuickReply ===');
-    console.log('otherUser:', otherUser);
-    console.log('currentChatId:', currentChatId);
-    
     if (!otherUser || !otherUser.id) {
       alert('Ошибка: информация о получателе недоступна');
       return;
@@ -153,41 +167,41 @@ const ChatScreen = ({route, navigation}) => {
     try {
       let chatIdToUse = currentChatId;
 
-      // Если нет chatId, создаем новый чат
+      // Если нет chatId, создаем новый чат через API
       if (!chatIdToUse) {
-        console.log('Creating new chat with quick reply...');
+        console.log('📝 Создание нового чата с быстрым ответом...');
         const newChat = await api.createChat({
           receiverId: otherUser.id,
           message: text,
           listingId: listing?.id || null,
         });
         
-        console.log('Chat created:', newChat);
         chatIdToUse = newChat.chatId;
         setCurrentChatId(chatIdToUse);
+        console.log('✅ Чат создан:', chatIdToUse);
         
         // Подключаемся к WebSocket для нового чата
         socketService.joinChat(chatIdToUse);
         socketService.onNewMessage((newMessage) => {
-          console.log('📨 Новое сообщение:', newMessage);
-          setMessages(prev => [...prev, newMessage]);
+          console.log('📨 Получено новое сообщение:', newMessage);
+          setMessages(prev => {
+            if (prev.find(m => m.id === newMessage.id)) {
+              return prev;
+            }
+            return [...prev, newMessage];
+          });
         });
         
-        // Перезагружаем сообщения
+        // Загружаем сообщения
         await loadMessages();
       } else {
-        // Отправляем через WebSocket если подключен
-        if (socketService.isConnected()) {
-          socketService.sendMessage(chatIdToUse, text);
-        } else {
-          // Fallback на REST API
-          await api.sendMessage(chatIdToUse, text);
-          await loadMessages();
-        }
+        // Отправляем через WebSocket
+        console.log('📤 Отправка быстрого ответа через WebSocket...');
+        socketService.sendMessage(chatIdToUse, text);
       }
     } catch (error) {
-      console.error('Ошибка отправки быстрого ответа:', error);
-      alert('Не удалось отправить сообщение: ' + error.message);
+      console.error('❌ Ошибка отправки быстрого ответа:', error);
+      alert('Не удалось отправить сообщение');
     }
   };
 
@@ -201,6 +215,12 @@ const ChatScreen = ({route, navigation}) => {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  // Определяем, является ли сообщение моим
+  const isMyMessage = (msg) => {
+    // Сравниваем sender_id с ID текущего пользователя
+    return msg.sender_id === currentUserId;
   };
 
   if (loading) {
@@ -233,9 +253,6 @@ const ChatScreen = ({route, navigation}) => {
         ref={scrollViewRef}
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}>
-        <View style={styles.dateHeader}>
-          <Text style={styles.dateText}>Сегодня</Text>
-        </View>
 
         {messages.length === 0 && showQuickReplies && (
           <View style={styles.quickRepliesContainer}>
@@ -251,35 +268,38 @@ const ChatScreen = ({route, navigation}) => {
           </View>
         )}
 
-        {messages.map((msg) => (
-          <View
-            key={msg.id}
-            style={[
-              styles.messageWrapper,
-              msg.sender_id === 'me' ? styles.myMessageWrapper : styles.otherMessageWrapper,
-            ]}>
+        {messages.map((msg) => {
+          const isMine = isMyMessage(msg);
+          return (
             <View
+              key={msg.id}
               style={[
-                styles.messageBubble,
-                msg.sender_id === 'me' ? styles.myMessage : styles.otherMessage,
+                styles.messageWrapper,
+                isMine ? styles.myMessageWrapper : styles.otherMessageWrapper,
               ]}>
-              <Text
+              <View
                 style={[
-                  styles.messageText,
-                  msg.sender_id === 'me' ? styles.myMessageText : styles.otherMessageText,
+                  styles.messageBubble,
+                  isMine ? styles.myMessage : styles.otherMessage,
                 ]}>
-                {msg.content}
-              </Text>
-              <Text
-                style={[
-                  styles.messageTime,
-                  msg.sender_id === 'me' ? styles.myMessageTime : styles.otherMessageTime,
-                ]}>
-                {formatTime(msg.created_at)}
-              </Text>
+                <Text
+                  style={[
+                    styles.messageText,
+                    isMine ? styles.myMessageText : styles.otherMessageText,
+                  ]}>
+                  {msg.content}
+                </Text>
+                <Text
+                  style={[
+                    styles.messageTime,
+                    isMine ? styles.myMessageTime : styles.otherMessageTime,
+                  ]}>
+                  {formatTime(msg.created_at)}
+                </Text>
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
 
       <View style={styles.inputContainer}>

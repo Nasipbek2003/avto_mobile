@@ -8,44 +8,95 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Alert,
 } from 'react-native';
 import {Image} from 'expo-image';
 import {Ionicons} from '@expo/vector-icons';
+import {useFocusEffect} from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {api} from '../config/api';
 
-const FavoritesScreen = () => {
+const FavoritesScreen = ({navigation}) => {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    loadFavorites();
+    checkAuthAndLoadFavorites();
   }, []);
+
+  // Автообновление при возврате на экран
+  useFocusEffect(
+    React.useCallback(() => {
+      checkAuthAndLoadFavorites();
+    }, [])
+  );
+
+  const checkAuthAndLoadFavorites = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (token) {
+        setIsAuthenticated(true);
+        await loadFavorites();
+      } else {
+        setIsAuthenticated(false);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Ошибка проверки авторизации:', error);
+      setIsAuthenticated(false);
+      setLoading(false);
+    }
+  };
 
   const loadFavorites = async () => {
     try {
       const data = await api.getFavorites();
-      setFavorites(data);
+      setFavorites(data || []);
     } catch (error) {
       console.error('Ошибка загрузки избранного:', error);
+      // Если ошибка авторизации, сбрасываем токен
+      if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+        await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('user');
+        setIsAuthenticated(false);
+        setFavorites([]);
+      } else if (!refreshing) {
+        Alert.alert('Ошибка', 'Не удалось загрузить избранное');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
+  const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    loadFavorites();
+    if (isAuthenticated) {
+      loadFavorites();
+    } else {
+      setRefreshing(false);
+    }
+  }, [isAuthenticated]);
+
+  const handleLogin = () => {
+    navigation.navigate('Login');
   };
 
   const handleRemoveFavorite = async (listingId) => {
     try {
       await api.removeFavorite(listingId);
       setFavorites(favorites.filter(item => item.id !== listingId));
+      Alert.alert('Успешно', 'Удалено из избранного');
     } catch (error) {
       console.error('Ошибка удаления из избранного:', error);
+      Alert.alert('Ошибка', 'Не удалось удалить из избранного');
     }
+  };
+
+  const handleCardPress = (item) => {
+    navigation.navigate('ListingDetail', {listing: item});
   };
 
   const getImageUrl = (item) => {
@@ -72,11 +123,69 @@ const FavoritesScreen = () => {
     );
   }
 
+  // Экран для неавторизованных пользователей
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Избранное</Text>
+          <View style={{width: 32}} />
+        </View>
+
+        <View style={styles.guestContainer}>
+          <View style={styles.guestIconContainer}>
+            <Ionicons name="heart-outline" size={80} color="#7c3aed" />
+          </View>
+          
+          <Text style={styles.guestTitle}>Войдите, чтобы сохранять избранное</Text>
+          <Text style={styles.guestSubtitle}>
+            Создайте аккаунт, чтобы сохранять понравившиеся объявления и получать к ним быстрый доступ
+          </Text>
+
+          <View style={styles.guestFeatures}>
+            <View style={styles.guestFeatureItem}>
+              <Ionicons name="bookmark" size={24} color="#4ade80" />
+              <Text style={styles.guestFeatureText}>Сохранение избранных авто</Text>
+            </View>
+            <View style={styles.guestFeatureItem}>
+              <Ionicons name="sync" size={24} color="#4ade80" />
+              <Text style={styles.guestFeatureText}>Синхронизация между устройствами</Text>
+            </View>
+            <View style={styles.guestFeatureItem}>
+              <Ionicons name="notifications" size={24} color="#4ade80" />
+              <Text style={styles.guestFeatureText}>Уведомления об изменениях цен</Text>
+            </View>
+          </View>
+
+          <View style={styles.guestButtons}>
+            <TouchableOpacity 
+              style={styles.guestLoginButton}
+              onPress={handleLogin}
+            >
+              <Ionicons name="log-in-outline" size={20} color="#fff" style={{marginRight: 8}} />
+              <Text style={styles.guestLoginButtonText}>Войти в аккаунт</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.guestRegisterButton}
+              onPress={handleLogin}
+            >
+              <Ionicons name="person-add-outline" size={20} color="#7c3aed" style={{marginRight: 8}} />
+              <Text style={styles.guestRegisterButtonText}>Создать аккаунт</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Избранное</Text>
-        <TouchableOpacity style={styles.searchButton}>
+        <TouchableOpacity 
+          style={styles.searchButton}
+          onPress={() => navigation.navigate('Search')}>
           <Ionicons name="search" size={24} color="#333" />
         </TouchableOpacity>
       </View>
@@ -92,12 +201,22 @@ const FavoritesScreen = () => {
       ) : (
         <ScrollView
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }>
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              colors={['#7c3aed']}
+              tintColor="#7c3aed"
+            />
+          }
+          showsVerticalScrollIndicator={false}>
           {favorites.map(item => {
             const imageUrl = getImageUrl(item);
             return (
-              <View key={item.id} style={styles.favoriteCard}>
+              <TouchableOpacity
+                key={item.id} 
+                style={styles.favoriteCard}
+                onPress={() => handleCardPress(item)}
+                activeOpacity={0.7}>
                 <View style={styles.imageContainer}>
                   {imageUrl ? (
                     <Image
@@ -111,8 +230,13 @@ const FavoritesScreen = () => {
                   )}
                 </View>
                 <View style={styles.infoContainer}>
-                  <Text style={styles.title}>{item.title}</Text>
+                  <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
                   <Text style={styles.price}>${item.price?.toLocaleString()}</Text>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.details}>
+                      {item.year} • {item.mileage?.toLocaleString()} км
+                    </Text>
+                  </View>
                   <View style={styles.locationRow}>
                     <Ionicons name="location" size={14} color="#666" />
                     <Text style={styles.location}>{item.region_name || 'Не указан'}</Text>
@@ -121,10 +245,13 @@ const FavoritesScreen = () => {
                 </View>
                 <TouchableOpacity
                   style={styles.heartButton}
-                  onPress={() => handleRemoveFavorite(item.id)}>
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleRemoveFavorite(item.id);
+                  }}>
                   <Ionicons name="heart" size={28} color="#ef4444" />
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </ScrollView>
@@ -144,6 +271,78 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
   },
+  // Стили для неавторизованных пользователей
+  guestContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  guestIconContainer: {
+    marginBottom: 24,
+  },
+  guestTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  guestSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  guestFeatures: {
+    width: '100%',
+    marginBottom: 32,
+  },
+  guestFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  guestFeatureText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  guestButtons: {
+    width: '100%',
+    gap: 12,
+  },
+  guestLoginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7c3aed',
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  guestLoginButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  guestRegisterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#7c3aed',
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  guestRegisterButtonText: {
+    color: '#7c3aed',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Оригинальные стили
   emptyContainer: {
     padding: 60,
     alignItems: 'center',
@@ -213,6 +412,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#7c3aed',
     marginBottom: 4,
+  },
+  detailsRow: {
+    marginBottom: 4,
+  },
+  details: {
+    fontSize: 12,
+    color: '#666',
   },
   locationRow: {
     flexDirection: 'row',
